@@ -117,25 +117,20 @@ p, li { font-family: var(--sans) !important; color: var(--text) !important; }
   visibility: hidden !important;
 }
 
-/* Force sidebar always open — prevent off-screen transform */
-section[data-testid="stSidebar"] {
-  transform: none !important;
-  width: 270px !important;
-  min-width: 270px !important;
+/* Sidebar toggle buttons — always visible and themed */
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stExpandSidebarButton"] button {
+  background: var(--surface-strong) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 8px !important;
+  color: var(--taupe) !important;
+  box-shadow: var(--shadow) !important;
+  transition: all 0.18s !important;
 }
-
-/* Hide the collapse button — sidebar is always visible */
-[data-testid="stSidebarCollapseButton"] {
-  display: none !important;
-}
-
-/* Make expand button obvious in case sidebar ever collapses */
-[data-testid="stExpandSidebarButton"] {
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  background: var(--gold) !important;
-  border-radius: 0 8px 8px 0 !important;
+[data-testid="stSidebarCollapseButton"] button:hover,
+[data-testid="stExpandSidebarButton"] button:hover {
+  background: var(--gold-dim) !important;
+  color: var(--text) !important;
 }
 
 [data-testid="stTextInput"] input,
@@ -391,33 +386,29 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; }
   padding: 0.9rem 1rem;
   margin: 0.4rem 0;
 }
-.ee-fade-in { animation: fi 0.5s ease forwards; }
-@keyframes fi { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.ee-fade-in { animation: fi 0.38s ease forwards; }
+@keyframes fi { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Instant visual feedback on nav click — masks Streamlit re-render lag */
+.ee-nav-link:active {
+  transform: scale(0.97) !important;
+  opacity: 0.7 !important;
+}
+
+/* Page-level fade-in on every navigation */
+[data-testid="stAppViewContainer"] > section:last-child {
+  animation: pageIn 0.3s ease forwards;
+}
+@keyframes pageIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 </style>
 """
 
 
-_SIDEBAR_JS = """
-<script>
-(function() {
-    function expandSidebar() {
-        var btn = window.parent.document.querySelector('[data-testid="stExpandSidebarButton"]');
-        if (btn) { btn.click(); return true; }
-        return false;
-    }
-    // Try immediately and after a short delay for slow renders
-    if (!expandSidebar()) {
-        setTimeout(expandSidebar, 400);
-        setTimeout(expandSidebar, 1000);
-    }
-})();
-</script>
-"""
-
 def inject_theme() -> None:
     st.markdown(THEME_CSS, unsafe_allow_html=True)
-    import streamlit.components.v1 as components
-    components.html(_SIDEBAR_JS, height=0, scrolling=False)
 
 
 def sidebar_nav(active_page: str = "main") -> None:
@@ -451,13 +442,13 @@ def sidebar_nav(active_page: str = "main") -> None:
             color  = "var(--text)" if is_active else "var(--text-muted)"
             weight = "600" if is_active else "500"
             nav_html += (
-                f'<a href="{href}" target="_self" style="'
+                f'<a href="{href}" target="_self" class="ee-nav-link" style="'
                 f'display:flex;align-items:center;gap:0.6rem;'
                 f'padding:0.62rem 0.82rem;border-radius:12px;'
                 f'background:{bg};border:{border};'
                 f'color:{color};font-family:var(--sans);font-size:0.82rem;'
                 f'font-weight:{weight};text-decoration:none;'
-                f'transition:all 0.18s;">'
+                f'transition:all 0.15s ease;">'
                 f'<span>{icon}</span><span>{label}</span>'
                 f'</a>'
             )
