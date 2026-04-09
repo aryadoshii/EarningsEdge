@@ -1,4 +1,4 @@
-"""EarningsEdge — app entry point. Uses st.navigation for instant page switching."""
+"""EarningsEdge — app entry point."""
 from __future__ import annotations
 import sys
 from pathlib import Path
@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from app.components.theme import inject_theme, sidebar_nav
+from app.components.theme import inject_theme, sidebar_logo
 inject_theme()
 
 # ── Define pages ──────────────────────────────────────────────────────────────
@@ -26,10 +26,10 @@ pages = [
     st.Page("pages/04_rag_evaluation.py",    title="RAG Evaluation",  icon="🎯"),
 ]
 
-pg = st.navigation(pages, position="hidden")  # hide default nav — we use our own
+# Use Streamlit's built-in sidebar nav (position="sidebar") — most reliable
+pg = st.navigation(pages)
 
-# ── Sidebar (rendered once, persists across all pages) ────────────────────────
-sidebar_nav(pg.title)
+# Add logo above the nav (Streamlit renders nav below any sidebar content)
+sidebar_logo()
 
-# ── Run current page ──────────────────────────────────────────────────────────
 pg.run()

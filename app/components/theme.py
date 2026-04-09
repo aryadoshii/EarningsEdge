@@ -117,21 +117,40 @@ p, li { font-family: var(--sans) !important; color: var(--text) !important; }
   visibility: hidden !important;
 }
 
-/* Sidebar toggle buttons — always visible and themed */
+/* Sidebar toggle buttons */
 [data-testid="stSidebarCollapseButton"] button,
 [data-testid="stExpandSidebarButton"] button {
   background: var(--surface-strong) !important;
   border: 1px solid var(--border-strong) !important;
   border-radius: 8px !important;
   color: var(--taupe) !important;
-  box-shadow: var(--shadow) !important;
   transition: all 0.18s !important;
 }
-[data-testid="stSidebarCollapseButton"] button:hover,
-[data-testid="stExpandSidebarButton"] button:hover {
-  background: var(--gold-dim) !important;
-  color: var(--text) !important;
+
+/* Style Streamlit's native nav links to match the theme */
+[data-testid="stSidebarNavLink"] {
+  border-radius: 12px !important;
+  font-family: var(--sans) !important;
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  padding: 0.62rem 0.82rem !important;
+  transition: all 0.15s ease !important;
+  border: 1px solid transparent !important;
 }
+[data-testid="stSidebarNavLink"]:hover {
+  background: rgba(255,255,255,0.56) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+[data-testid="stSidebarNavLink"][aria-current="page"] {
+  background: linear-gradient(135deg,rgba(232,213,158,.38),rgba(217,187,176,.22)) !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  border-color: rgba(232,213,158,.7) !important;
+}
+/* Hide the nav section label/divider Streamlit adds */
+[data-testid="stSidebarNavSeparator"] { display: none !important; }
 
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input,
@@ -411,29 +430,11 @@ def inject_theme() -> None:
     st.markdown(THEME_CSS, unsafe_allow_html=True)
 
 
-def sidebar_nav(active_page: str = "Overview") -> None:
-    _NAV = [
-        ("Overview",        "🏠"),
-        ("Watchlist",       "⭐"),
-        ("Ticker Analysis", "🔍"),
-        ("Tone Drift",      "📊"),
-        ("Backtest Results","📈"),
-        ("RAG Evaluation",  "🎯"),
-    ]
-
-    _PAGE_FILES = {
-        "Overview":        "pages/home.py",
-        "Watchlist":       "pages/00_watchlist.py",
-        "Ticker Analysis": "pages/01_ticker_analysis.py",
-        "Tone Drift":      "pages/02_tone_drift.py",
-        "Backtest Results":"pages/03_backtest_results.py",
-        "RAG Evaluation":  "pages/04_rag_evaluation.py",
-    }
-
+def sidebar_logo() -> None:
+    """Render the EarningsEdge logo above Streamlit's native nav."""
     with st.sidebar:
-        # ── Logo ─────────────────────────────────────────────────────
         st.markdown(
-            '<div style="padding:1.25rem 0.5rem 1rem;border-bottom:1px solid var(--border);margin-bottom:0.75rem;">'
+            '<div style="padding:1.25rem 0.5rem 1rem;border-bottom:1px solid var(--border);margin-bottom:0.25rem;">'
             '<div style="font-family:var(--serif);font-size:1.5rem;font-weight:700;letter-spacing:-0.04em;color:var(--text);">'
             '<span style="color:var(--taupe);">Earnings</span>Edge</div>'
             '<div style="font-family:var(--sans);font-size:0.6rem;color:var(--text-dim);letter-spacing:0.18em;'
@@ -442,30 +443,10 @@ def sidebar_nav(active_page: str = "Overview") -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Nav buttons (use st.switch_page for instant navigation) ──
-        for label, icon in _NAV:
-            is_active = active_page == label
-            btn_style = (
-                "background:linear-gradient(135deg,rgba(232,213,158,.38),rgba(217,187,176,.22));"
-                "border:1px solid rgba(232,213,158,.7);color:var(--text);font-weight:600;"
-                if is_active else
-                "background:transparent;border:1px solid transparent;"
-                "color:var(--text-muted);font-weight:500;"
-            )
-            st.markdown(
-                f'<style>'
-                f'div[data-testid="stButton"] > button[kind="secondary"]#{label.replace(" ","_")} {{'
-                f'  {btn_style}'
-                f'  display:flex;align-items:center;gap:0.6rem;width:100%;'
-                f'  padding:0.62rem 0.82rem;border-radius:12px;'
-                f'  font-family:var(--sans);font-size:0.82rem;text-align:left;'
-                f'  transition:all 0.15s ease;cursor:pointer;'
-                f'}}'
-                f'</style>',
-                unsafe_allow_html=True,
-            )
-            if st.button(f"{icon}  {label}", key=f"nav_{label}", use_container_width=True):
-                st.switch_page(_PAGE_FILES[label])
+
+# Keep sidebar_nav as an alias so page files that still call it don't crash
+def sidebar_nav(active_page: str = "Overview") -> None:
+    sidebar_logo()
 
 
 
