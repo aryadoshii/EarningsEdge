@@ -117,14 +117,25 @@ p, li { font-family: var(--sans) !important; color: var(--text) !important; }
   visibility: hidden !important;
 }
 
-/* Always show sidebar collapse/expand controls */
-[data-testid="stSidebarCollapsedControl"] {
-  display: block !important;
-  visibility: visible !important;
+/* Force sidebar always open — prevent off-screen transform */
+section[data-testid="stSidebar"] {
+  transform: none !important;
+  width: 270px !important;
+  min-width: 270px !important;
 }
+
+/* Hide the collapse button — sidebar is always visible */
 [data-testid="stSidebarCollapseButton"] {
-  display: block !important;
+  display: none !important;
+}
+
+/* Make expand button obvious in case sidebar ever collapses */
+[data-testid="stExpandSidebarButton"] {
+  display: flex !important;
   visibility: visible !important;
+  opacity: 1 !important;
+  background: var(--gold) !important;
+  border-radius: 0 8px 8px 0 !important;
 }
 
 [data-testid="stTextInput"] input,
@@ -386,8 +397,27 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; }
 """
 
 
+_SIDEBAR_JS = """
+<script>
+(function() {
+    function expandSidebar() {
+        var btn = window.parent.document.querySelector('[data-testid="stExpandSidebarButton"]');
+        if (btn) { btn.click(); return true; }
+        return false;
+    }
+    // Try immediately and after a short delay for slow renders
+    if (!expandSidebar()) {
+        setTimeout(expandSidebar, 400);
+        setTimeout(expandSidebar, 1000);
+    }
+})();
+</script>
+"""
+
 def inject_theme() -> None:
     st.markdown(THEME_CSS, unsafe_allow_html=True)
+    import streamlit.components.v1 as components
+    components.html(_SIDEBAR_JS, height=0, scrolling=False)
 
 
 def sidebar_nav(active_page: str = "main") -> None:
