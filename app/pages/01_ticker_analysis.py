@@ -1,15 +1,11 @@
 """Ticker Analysis — EarningsEdge."""
 from __future__ import annotations
-import asyncio, sys
+import asyncio
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import streamlit as st
-st.set_page_config(page_title="Ticker Analysis · EarningsEdge", layout="wide", initial_sidebar_state="expanded")
 
-from app.components.theme import inject_theme, sidebar_nav, score_display, component_bar
-inject_theme()
-sidebar_nav("ticker")
+from app.components.theme import score_display, component_bar
 
 from config.settings import settings
 

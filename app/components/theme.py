@@ -411,15 +411,24 @@ def inject_theme() -> None:
     st.markdown(THEME_CSS, unsafe_allow_html=True)
 
 
-def sidebar_nav(active_page: str = "main") -> None:
+def sidebar_nav(active_page: str = "Overview") -> None:
     _NAV = [
-        ("main",             "/",                  "🏠", "Overview"),
-        ("watchlist",        "/watchlist",          "⭐", "Watchlist"),
-        ("ticker",           "/ticker_analysis",   "🔍", "Ticker Analysis"),
-        ("tone",             "/tone_drift",         "📊", "Tone Drift"),
-        ("backtest",         "/backtest_results",  "📈", "Backtest Results"),
-        ("rag",              "/rag_evaluation",    "🎯", "RAG Evaluation"),
+        ("Overview",        "🏠"),
+        ("Watchlist",       "⭐"),
+        ("Ticker Analysis", "🔍"),
+        ("Tone Drift",      "📊"),
+        ("Backtest Results","📈"),
+        ("RAG Evaluation",  "🎯"),
     ]
+
+    _PAGE_FILES = {
+        "Overview":        "pages/home.py",
+        "Watchlist":       "pages/00_watchlist.py",
+        "Ticker Analysis": "pages/01_ticker_analysis.py",
+        "Tone Drift":      "pages/02_tone_drift.py",
+        "Backtest Results":"pages/03_backtest_results.py",
+        "RAG Evaluation":  "pages/04_rag_evaluation.py",
+    }
 
     with st.sidebar:
         # ── Logo ─────────────────────────────────────────────────────
@@ -433,27 +442,30 @@ def sidebar_nav(active_page: str = "main") -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Nav links (plain <a> tags — works in all Streamlit versions) ──
-        nav_html = '<nav style="display:flex;flex-direction:column;gap:0.15rem;">'
-        for key, href, icon, label in _NAV:
-            is_active = active_page == key
-            bg     = "linear-gradient(135deg,rgba(232,213,158,.38),rgba(217,187,176,.22))" if is_active else "transparent"
-            border = "1px solid rgba(232,213,158,.7)" if is_active else "1px solid transparent"
-            color  = "var(--text)" if is_active else "var(--text-muted)"
-            weight = "600" if is_active else "500"
-            nav_html += (
-                f'<a href="{href}" target="_self" class="ee-nav-link" style="'
-                f'display:flex;align-items:center;gap:0.6rem;'
-                f'padding:0.62rem 0.82rem;border-radius:12px;'
-                f'background:{bg};border:{border};'
-                f'color:{color};font-family:var(--sans);font-size:0.82rem;'
-                f'font-weight:{weight};text-decoration:none;'
-                f'transition:all 0.15s ease;">'
-                f'<span>{icon}</span><span>{label}</span>'
-                f'</a>'
+        # ── Nav buttons (use st.switch_page for instant navigation) ──
+        for label, icon in _NAV:
+            is_active = active_page == label
+            btn_style = (
+                "background:linear-gradient(135deg,rgba(232,213,158,.38),rgba(217,187,176,.22));"
+                "border:1px solid rgba(232,213,158,.7);color:var(--text);font-weight:600;"
+                if is_active else
+                "background:transparent;border:1px solid transparent;"
+                "color:var(--text-muted);font-weight:500;"
             )
-        nav_html += '</nav>'
-        st.markdown(nav_html, unsafe_allow_html=True)
+            st.markdown(
+                f'<style>'
+                f'div[data-testid="stButton"] > button[kind="secondary"]#{label.replace(" ","_")} {{'
+                f'  {btn_style}'
+                f'  display:flex;align-items:center;gap:0.6rem;width:100%;'
+                f'  padding:0.62rem 0.82rem;border-radius:12px;'
+                f'  font-family:var(--sans);font-size:0.82rem;text-align:left;'
+                f'  transition:all 0.15s ease;cursor:pointer;'
+                f'}}'
+                f'</style>',
+                unsafe_allow_html=True,
+            )
+            if st.button(f"{icon}  {label}", key=f"nav_{label}", use_container_width=True):
+                st.switch_page(_PAGE_FILES[label])
 
 
 

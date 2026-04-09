@@ -1,15 +1,9 @@
 """RAG Evaluation — EarningsEdge."""
 from __future__ import annotations
-import asyncio, sys
+import asyncio
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import streamlit as st
-st.set_page_config(page_title="RAG Evaluation · EarningsEdge", layout="wide", initial_sidebar_state="expanded")
-
-from app.components.theme import inject_theme, sidebar_nav
-inject_theme()
-sidebar_nav("ragas")
 
 with st.sidebar:
     st.markdown('<div style="padding:0.5rem 0 0.75rem;border-bottom:1px solid var(--border);margin-bottom:0.9rem;"><div class="ee-label">Evaluation</div></div>', unsafe_allow_html=True)

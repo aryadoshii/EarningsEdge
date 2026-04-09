@@ -1,15 +1,8 @@
 """Tone Drift — EarningsEdge."""
 from __future__ import annotations
-import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import streamlit as st
-st.set_page_config(page_title="Tone Drift · EarningsEdge", layout="wide", initial_sidebar_state="expanded")
-
-from app.components.theme import inject_theme, sidebar_nav
-inject_theme()
-sidebar_nav("drift")
 
 st.markdown(
     '<div class="ee-fade-in" style="padding-bottom:1.25rem;border-bottom:1px solid var(--border);margin-bottom:1.5rem;">'

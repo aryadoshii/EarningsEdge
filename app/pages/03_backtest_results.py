@@ -1,16 +1,10 @@
 """Backtest Results — EarningsEdge."""
 from __future__ import annotations
-import asyncio, sys
+import asyncio
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import streamlit as st
 import pandas as pd
-st.set_page_config(page_title="Backtest · EarningsEdge", layout="wide", initial_sidebar_state="expanded")
-
-from app.components.theme import inject_theme, sidebar_nav
-inject_theme()
-sidebar_nav("backtest")
 
 from config.settings import settings
 
