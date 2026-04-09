@@ -1,0 +1,45 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Data (raw and processed — too large for git)
+data/raw/
+data/processed/
+data/chroma_db/
+data/mlflow_runs/
+data/.cache/
+
+# Notebooks
+notebooks/.ipynb_checkpoints/
+*.ipynb
+
+# Build / dist
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
