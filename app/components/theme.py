@@ -109,12 +109,31 @@ h1, h2, h3 {
 }
 p, li { font-family: var(--sans) !important; color: var(--text) !important; }
 
-#MainMenu, footer, header,
+#MainMenu, footer,
 [data-testid="stToolbar"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"] {
   display: none !important;
   visibility: hidden !important;
+}
+
+/* Keep the sidebar toggle button always visible */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 999 !important;
+}
+
+/* Style the collapse button to match the theme */
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stSidebarCollapsedControl"] button {
+  background: var(--surface-strong) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text-muted) !important;
 }
 
 [data-testid="stTextInput"] input,
