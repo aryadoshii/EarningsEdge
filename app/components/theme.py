@@ -109,7 +109,7 @@ h1, h2, h3 {
 }
 p, li { font-family: var(--sans) !important; color: var(--text) !important; }
 
-#MainMenu, footer,
+#MainMenu, footer, header,
 [data-testid="stToolbar"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"] {
@@ -117,23 +117,14 @@ p, li { font-family: var(--sans) !important; color: var(--text) !important; }
   visibility: hidden !important;
 }
 
-/* Keep the sidebar toggle button always visible */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"] {
-  display: flex !important;
+/* Always show sidebar collapse/expand controls */
+[data-testid="stSidebarCollapsedControl"] {
+  display: block !important;
   visibility: visible !important;
-  opacity: 1 !important;
-  z-index: 999 !important;
 }
-
-/* Style the collapse button to match the theme */
-[data-testid="stSidebarCollapseButton"] button,
-[data-testid="stSidebarCollapsedControl"] button {
-  background: var(--surface-strong) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
-  color: var(--text-muted) !important;
+[data-testid="stSidebarCollapseButton"] {
+  display: block !important;
+  visibility: visible !important;
 }
 
 [data-testid="stTextInput"] input,
@@ -400,10 +391,19 @@ def inject_theme() -> None:
 
 
 def sidebar_nav(active_page: str = "main") -> None:
+    _NAV = [
+        ("main",             "/",                  "🏠", "Overview"),
+        ("watchlist",        "/watchlist",          "⭐", "Watchlist"),
+        ("ticker",           "/ticker_analysis",   "🔍", "Ticker Analysis"),
+        ("tone",             "/tone_drift",         "📊", "Tone Drift"),
+        ("backtest",         "/backtest_results",  "📈", "Backtest Results"),
+        ("rag",              "/rag_evaluation",    "🎯", "RAG Evaluation"),
+    ]
+
     with st.sidebar:
-        # Logo
+        # ── Logo ─────────────────────────────────────────────────────
         st.markdown(
-            '<div style="padding:1.25rem 0.25rem 1rem;border-bottom:1px solid var(--border);margin-bottom:1rem;">'
+            '<div style="padding:1.25rem 0.5rem 1rem;border-bottom:1px solid var(--border);margin-bottom:0.75rem;">'
             '<div style="font-family:var(--serif);font-size:1.5rem;font-weight:700;letter-spacing:-0.04em;color:var(--text);">'
             '<span style="color:var(--taupe);">Earnings</span>Edge</div>'
             '<div style="font-family:var(--sans);font-size:0.6rem;color:var(--text-dim);letter-spacing:0.18em;'
@@ -412,13 +412,27 @@ def sidebar_nav(active_page: str = "main") -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Actual clickable page links ──────────────────────────────
-        st.page_link("main.py",                      label="Overview",        icon="🏠")
-        st.page_link("pages/00_watchlist.py",         label="Watchlist",       icon="⭐")
-        st.page_link("pages/01_ticker_analysis.py",  label="Ticker Analysis", icon="🔍")
-        st.page_link("pages/02_tone_drift.py",        label="Tone Drift",      icon="📊")
-        st.page_link("pages/03_backtest_results.py",  label="Backtest Results",icon="📈")
-        st.page_link("pages/04_rag_evaluation.py",    label="RAG Evaluation",  icon="🎯")
+        # ── Nav links (plain <a> tags — works in all Streamlit versions) ──
+        nav_html = '<nav style="display:flex;flex-direction:column;gap:0.15rem;">'
+        for key, href, icon, label in _NAV:
+            is_active = active_page == key
+            bg     = "linear-gradient(135deg,rgba(232,213,158,.38),rgba(217,187,176,.22))" if is_active else "transparent"
+            border = "1px solid rgba(232,213,158,.7)" if is_active else "1px solid transparent"
+            color  = "var(--text)" if is_active else "var(--text-muted)"
+            weight = "600" if is_active else "500"
+            nav_html += (
+                f'<a href="{href}" target="_self" style="'
+                f'display:flex;align-items:center;gap:0.6rem;'
+                f'padding:0.62rem 0.82rem;border-radius:12px;'
+                f'background:{bg};border:{border};'
+                f'color:{color};font-family:var(--sans);font-size:0.82rem;'
+                f'font-weight:{weight};text-decoration:none;'
+                f'transition:all 0.18s;">'
+                f'<span>{icon}</span><span>{label}</span>'
+                f'</a>'
+            )
+        nav_html += '</nav>'
+        st.markdown(nav_html, unsafe_allow_html=True)
 
 
 
