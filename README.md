@@ -1,17 +1,12 @@
 <div align="center">
 
-<br/>
+<img src="frontend/assets/banner.png" alt="EarningsEdge Banner" width="100%">
 
-```
-███████╗ █████╗ ██████╗ ███╗  ██╗██╗███╗  ██╗ ██████╗ ███████╗   ███████╗██████╗  ██████╗ ███████╗
-██╔════╝██╔══██╗██╔══██╗████╗ ██║██║████╗ ██║██╔════╝ ██╔════╝   ██╔════╝██╔══██╗██╔════╝ ██╔════╝
-█████╗  ███████║██████╔╝██╔██╗██║██║██╔██╗██║██║  ███╗███████╗   █████╗  ██║  ██║██║  ███╗█████╗
-██╔══╝  ██╔══██║██╔══██╗██║╚████║██║██║╚████║██║   ██║╚════██║   ██╔══╝  ██║  ██║██║   ██║██╔══╝
-███████╗██║  ██║██║  ██║██║ ╚███║██║██║ ╚███║╚██████╔╝███████║   ███████╗██████╔╝╚██████╔╝███████╗
-╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚══╝╚═╝╚═╝  ╚══╝╚═════╝ ╚══════╝   ╚══════╝╚═════╝  ╚═════╝ ╚══════╝
-```
+# EarningsEdge
 
 **Institutional-grade earnings intelligence. No Bloomberg terminal required.**
+
+<br>
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Multi--hop_RAG-00ADD8?style=flat-square)](https://github.com/langchain-ai/langgraph)
@@ -21,11 +16,7 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=flat-square&logo=streamlit)](https://streamlit.io)
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square)](LICENSE)
 
-<br/>
-
 > *"Alpha is in the language before it's in the numbers."*
-
-<br/>
 
 </div>
 
@@ -38,6 +29,57 @@ EarningsEdge is a **production-grade, end-to-end earnings intelligence platform*
 It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts financial signals from management language using NLP, detects when executives contradict themselves across quarters, measures the gap between stated guidance and reported actuals, computes a **forensic accruals ratio** from XBRL data, and rolls everything into a single composite quality score — then answers analyst-style questions about any US-listed company using a **multi-hop LangGraph RAG pipeline**.
 
 **No terminal commands per ticker. Type a symbol. Click Analyse. Get alpha.**
+
+---
+
+## 📸 Screenshots
+
+### 🏠 Home — Quick Analysis
+<img src="frontend/assets/01_home.png" alt="EarningsEdge Home" width="100%"/>
+
+*Type any US-listed ticker and hit Analyse. The full pipeline — SEC fetch, embedding, NLP analysis, RAG synthesis — runs automatically in the UI.*
+
+---
+
+### 📊 Ticker Analysis — Earnings Quality Score
+<img src="frontend/assets/02_ticker_analysis.png" alt="Ticker Analysis" width="100%"/>
+
+*Composite quality score [-1, +1] with 4-component breakdown. GREEN / YELLOW / RED tone drift alert alongside retrieval metadata.*
+
+---
+
+### 🔍 NLI Contradiction Detection
+<img src="frontend/assets/03_contradictions.png" alt="Contradiction Detection" width="100%"/>
+
+*DeBERTa-v3 cross-encoder flags semantic contradictions between quarters — e.g., "robust supply chain" in Q2 vs. "supply chain headwinds" in Q3.*
+
+---
+
+### 📈 Intelligence Report
+<img src="frontend/assets/04_report.png" alt="Intelligence Report" width="100%"/>
+
+*Full LLM-synthesised analyst report with source citations — ticker, quarter, year, and section — grounded in retrieved SEC filing context.*
+
+---
+
+### ⭐ Watchlist & Batch Ingestion
+<img src="frontend/assets/05_watchlist.png" alt="Watchlist" width="100%"/>
+
+*Add multiple tickers at once. Batch ingest new, refresh stale (>7 days), or re-ingest all — with per-ticker live status and a progress bar.*
+
+---
+
+### 📉 Tone Drift Monitor
+<img src="frontend/assets/06_tone_drift.png" alt="Tone Drift" width="100%"/>
+
+*Quarter-by-quarter FinBERT sentiment timeline. Consecutive deterioration triggers RED alert — management credibility signal before consensus cuts.*
+
+---
+
+### 🔁 Backtest Results
+<img src="frontend/assets/07_backtest.png" alt="Backtest Results" width="100%"/>
+
+*Composite score → long/short signal → returns. Sharpe ratio, hit rate, information coefficient (IC), alpha, and beta vs. SPY.*
 
 ---
 
@@ -179,38 +221,7 @@ make run
 # → http://localhost:8501
 ```
 
-**That's it.** Type any US-listed ticker (AAPL, NVDA, JPM, META…), click Analyse, and the full pipeline runs automatically — SEC filing fetch, embedding, NLP analysis, and RAG synthesis — directly in the UI. No terminal commands per ticker.
-
----
-
-## Dashboard Features
-
-### Ticker Analysis
-- Auto-detects if data exists. If not, runs the full pipeline in-UI with live step-by-step progress
-- Staleness badge — shows data age (green ≤ 7d · amber > 7d · red = no data)
-- Force-refresh button to re-ingest without clearing your watchlist
-- Score card + 4-component breakdown bar chart
-- NLI contradiction cards — semantic conflicts flagged across quarters
-- Full LLM intelligence report with source citations `[ticker · quarter · year — section]`
-
-### Watchlist & Batch Ingestion
-- Add multiple tickers at once (comma-separated)
-- Auto-populates from locally cached data on startup
-- Batch buttons: **Ingest new** / **Refresh stale** / **Re-ingest all**
-- Progress bar with per-ticker live status during batch runs
-
-### Tone Drift Monitor
-- Quarter-by-quarter FinBERT sentiment timeline per ticker
-- GREEN / YELLOW / RED alert cascade based on consecutive deterioration
-- Hedging language frequency — tracks words like "uncertainty," "headwinds," "challenging"
-
-### Backtest Results
-- Score → long/short signal → returns attribution
-- Metrics: Sharpe ratio, hit rate, information coefficient (IC), alpha, beta vs. SPY
-
-### RAG Evaluation
-- RAGAS scores per query: faithfulness · answer relevancy · context precision · context recall
-- MLflow experiment history — track quality regression across retrieval changes
+**That's it.** Type any US-listed ticker, click Analyse — the full pipeline runs automatically in the UI.
 
 ---
 
@@ -281,6 +292,8 @@ earningsedge/
 │   │   └── 04_rag_evaluation.py
 │   └── components/
 │       └── theme.py             # Obsidian Terminal design system
+├── frontend/
+│   └── assets/                  # banner.png + UI screenshots
 ├── src/pipeline_runner.py       # Programmatic API — ingest / embed / analyze
 ├── data/
 │   ├── raw/                     # SEC filing HTML/XML
@@ -304,7 +317,7 @@ Accruals Ratio = (Net Income − Operating Cash Flow) / Total Assets
 
 When this ratio is **high**, earnings greatly exceed cash generation — a sign of aggressive revenue recognition or expense deferral. These inflated earnings mean-revert. A hedge portfolio long low-accrual and short high-accrual companies historically generates ~10% annual alpha with low market beta.
 
-EarningsEdge computes this directly from **XBRL-tagged financial data** embedded in SEC filings — the same structured dataset used by institutional data vendors like FactSet and Bloomberg — and weights it 25% in the composite score.
+EarningsEdge computes this from **XBRL-tagged financial data** in SEC filings — the same structured dataset used by institutional data vendors like FactSet and Bloomberg — and weights it 25% in the composite score.
 
 ---
 
