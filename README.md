@@ -1,7 +1,3 @@
-<div align="center">
-
-<img src="frontend/assets/banner.png" alt="EarningsEdge Banner" width="100%">
-
 # EarningsEdge
 
 **Institutional-grade earnings intelligence. No Bloomberg terminal required.**
