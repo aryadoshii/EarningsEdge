@@ -106,7 +106,7 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
 ```
                      ┌──────────────────────────────────────────┐
                      │            DATA INGESTION                │
-  SEC EDGAR ─────────┤  10-K · 10-Q · 8-K  (XBRL + full text)  │
+  SEC EDGAR ─────────┤  10-K · 10-Q · 8-K  (XBRL + full text)   │
   Earnings Calls ────┤  Prepared remarks · Q&A segmentation     │
   Analyst Consensus ─┤  yfinance · price targets · revisions    │
                      └────────────────┬─────────────────────────┘
@@ -129,13 +129,13 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
          ┌────────────────────────────▼─────────────────────────────────┐
          │             LANGGRAPH RAG PIPELINE  (9 nodes)                │
          │                                                              │
-         │  retrieve_context → gap_detector ──► expand_context         │
+         │  retrieve_context → gap_detector ──► expand_context          │
          │        │                                  │                  │
          │        ▼                                  ▼                  │
-         │  sentiment_node → quality_check ──► synthesize              │
+         │  sentiment_node → quality_check ──► synthesize               │
          │        │                                  │                  │
          │        ▼                                  ▼                  │
-         │  format_output ────────► RAGAS evaluate → MLflow log        │
+         │  format_output ────────► RAGAS evaluate → MLflow log         │
          └────────────────────────────┬─────────────────────────────────┘
                                       │
                      ┌────────────────▼─────────────────────────┐
