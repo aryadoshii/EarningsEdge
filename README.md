@@ -1,6 +1,6 @@
 # EarningsEdge
 
-**Institutional-grade earnings intelligence. No Bloomberg terminal required.**
+**Institutional-grade earnings intelligence.**
 
 <br>
 
