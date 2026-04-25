@@ -44,13 +44,6 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
 
 ---
 
-### 🔍 NLI Contradiction Detection
-<img src="frontend/assets/03_contradictions.png" alt="Contradiction Detection" width="100%"/>
-
-*DeBERTa-v3 cross-encoder flags semantic contradictions between quarters — e.g., "robust supply chain" in Q2 vs. "supply chain headwinds" in Q3.*
-
----
-
 ### 📈 Intelligence Report
 <img src="frontend/assets/04_report.png" alt="Intelligence Report" width="100%"/>
 
