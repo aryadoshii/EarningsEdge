@@ -35,21 +35,19 @@ It reads **10-K and 10-Q filings** directly from SEC EDGAR, extracts financial s
 
 *A descriptive landing page — pipeline overview, the four composite-score weights, and a link to Ticker Analysis. No ticker input or pipeline trigger lives here.*
 
-> ⚠️ This screenshot predates a refactor this session that removed Home's Quick Analysis form — the page no longer looks like this. See [Known Limitations](#known-limitations).
+---
+
+### ⭐ Watchlist & Batch Ingestion
+<img src="frontend/assets/02_watchlist.png" alt="Watchlist" width="100%"/>
+
+*Manage tickers, batch-ingest new ones, refresh stale data (>7 days), or re-ingest everything — with per-ticker freshness status and its on-disk data path.*
 
 ---
 
 ### 📊 Ticker Analysis — Earnings Quality Score
-<img src="frontend/assets/02_ticker_analysis.png" alt="Ticker Analysis" width="100%"/>
+<img src="frontend/assets/03_ticker_analysis.png" alt="Ticker Analysis" width="100%"/>
 
-*Composite quality score [-1, +1] with 4-component breakdown. GREEN / YELLOW / RED tone drift alert alongside retrieval metadata.*
-
----
-
-### 🔍 NLI Contradiction Detection
-<img src="frontend/assets/03_contradictions.png" alt="Contradiction Detection" width="100%"/>
-
-*DeBERTa-v3 cross-encoder flags semantic contradictions between quarters — e.g., "robust supply chain" in Q2 vs. "supply chain headwinds" in Q3.*
+*Composite quality score [-1, +1] with a 4-component breakdown, tone drift alert badge, and retrieval metadata (chunks retrieved, RAG hops, grounding score, latency). Controls and the freshness caption live in the main content area, not the sidebar.*
 
 ---
 
@@ -60,26 +58,24 @@ It reads **10-K and 10-Q filings** directly from SEC EDGAR, extracts financial s
 
 ---
 
-### ⭐ Watchlist & Batch Ingestion
-<img src="frontend/assets/05_watchlist.png" alt="Watchlist" width="100%"/>
-
-*Add multiple tickers at once. Batch ingest new, refresh stale (>7 days), or re-ingest all — with per-ticker live status and a progress bar.*
-
----
-
 ### 📉 Tone Drift Monitor
-<img src="frontend/assets/06_tone_drift.png" alt="Tone Drift" width="100%"/>
+<img src="frontend/assets/05_tone_drift.png" alt="Tone Drift" width="100%"/>
 
 *Quarter-by-quarter FinBERT sentiment timeline. Consecutive deterioration triggers RED alert — management credibility signal before consensus cuts.*
 
 ---
 
 ### 🔁 Backtest Results
-<img src="frontend/assets/07_backtest.png" alt="Backtest Results" width="100%"/>
+<img src="frontend/assets/06_backtest.png" alt="Backtest Results" width="100%"/>
 
-*Composite score → long/short signal → returns. Sharpe ratio, hit rate, information coefficient (IC), alpha, and beta vs. SPY.*
+*Composite score → long/short signal → returns, loaded straight off every ticker's saved `analysis.json` — no manual wiring required. The page states plainly what it ran over ("2 of 85 quality scores cleared the ±0.30 signal thresholds") and reports "insufficient data (n=X)" instead of a fabricated Sharpe/IC when a slice has too few trades to compute one honestly, rather than silently showing 0.000.*
 
-> ⚠️ **Not currently wired up.** This page reads `st.session_state["quality_scores"]`, and nothing anywhere in the codebase writes that key — clicking "Run Backtest" always shows "No quality scores. Run `make analyze TICKER=X` first," even after running an analysis. The screenshot above shows the intended UI, not something you can currently reproduce. Details in [Known Limitations](#known-limitations).
+---
+
+### 🎯 RAG Evaluation
+<img src="frontend/assets/07_RAGAS.png" alt="RAG Evaluation" width="100%"/>
+
+*Per-query RAGAS/LLM-fallback scores (faithfulness, answer relevance, context precision, context recall) plus MLflow experiment history, filterable by ticker.*
 
 ---
 
@@ -107,7 +103,7 @@ It reads **10-K and 10-Q filings** directly from SEC EDGAR, extracts financial s
 |---|---|
 | **Sentiment Drift** | Management tone deteriorates before guidance cuts, in theory. FinBERT is fine-tuned on Financial PhraseBank (financial *news* sentences) — applying it to 10-K/10-Q legalese is out-of-distribution, a real limitation of this signal that hasn't been corrected for. |
 | **Guidance Accuracy** | Sandbagging (conservative guidance) predicts positive surprises. Overoptimistic guidance predicts misses. |
-| **Accruals Ratio** | Sloan (1996): high accruals mean earnings aren't backed by cash. The ~10% annual alpha figure is from the academic accruals-anomaly literature generally — not a result this system has reproduced (its own measured IC is close to zero; see Known Limitations). |
+| **Accruals Ratio** | Sloan (1996): high accruals mean earnings aren't backed by cash. The ~10% annual alpha figure is from the academic accruals-anomaly literature generally — not a result this system has reproduced (the backtest still has too few qualifying trades to report an IC at all; see Known Limitations). |
 | **Analyst Revisions** | Net revision direction is a proxy for informed money flow. Upgrades before earnings = smart money positioning. |
 
 ---
@@ -319,7 +315,7 @@ The accruals anomaly is one of the most replicated findings in empirical asset p
 Accruals Ratio = (Net Income − Operating Cash Flow) / Total Assets
 ```
 
-When this ratio is **high**, earnings greatly exceed cash generation — a sign of aggressive revenue recognition or expense deferral. These inflated earnings mean-revert. A hedge portfolio long low-accrual and short high-accrual companies historically generates ~10% annual alpha with low market beta — **this figure is from the academic accruals-anomaly literature, not from backtesting this system**, whose own measured Information Coefficient is close to zero (see Known Limitations below).
+When this ratio is **high**, earnings greatly exceed cash generation — a sign of aggressive revenue recognition or expense deferral. These inflated earnings mean-revert. A hedge portfolio long low-accrual and short high-accrual companies historically generates ~10% annual alpha with low market beta — **this figure is from the academic accruals-anomaly literature, not from backtesting this system**, which so far has too few qualifying trades to report an Information Coefficient at all (see Known Limitations below).
 
 EarningsEdge computes this from **XBRL-tagged financial data** in SEC filings — the same structured dataset used by institutional data vendors like FactSet and Bloomberg — and weights it 25% in the composite score.
 
@@ -345,13 +341,13 @@ Consumer         NKE   COST  MCD   SBUX   TGT
 
 Validating this system end-to-end surfaced several honest findings worth stating directly rather than glossing over:
 
-- **Realised Information Coefficient is close to zero.** The Spearman rank correlation between the composite score and forward returns comes out near 0 in backtesting — as currently weighted and computed, the signal has not demonstrated measurable predictive power.
-- **Two of four components are look-ahead contaminated.** `sentiment_drift_component` and `analyst_revision_component` — 50% of the composite weight — are each computed once from present-day data (the full historical drift trend, and a 30-day analyst-revision snapshot) and reused unchanged for every historical quarter of a ticker's series. They're constant across time and leak future information into the past, which is almost certainly why the measured IC is flat.
+- **The realised Information Coefficient isn't known yet — and the earlier "≈0" reading was probably measuring a bug, not the signal.** Spearman IC needs at least 5 trades to be mathematically defined (`MIN_TRADES_FOR_IC` in `src/backtest/metrics.py`). Across the 6 tickers analysed so far, only 2 of 85 quarterly scores ever crossed the ±0.30 signal threshold (see the Backtest Results screenshot above), so the honest answer today is "insufficient data," not a number. Before this session's fixes, the same function silently returned `0.0` whenever there weren't enough trades — indistinguishable in the UI from a real, measured zero correlation. That's very likely the origin of the earlier "IC ≈ 0" claim: not evidence the signal doesn't work, but a placeholder default being mistaken for a result.
+- **The backtest sample is still tiny.** The page itself works now — it loads every analysed ticker's saved score off disk and runs a real simulation — but with only 2 LONG signals and 0 SHORT across the 6 tickers analysed so far, the Sharpe (1.03) and 100% hit rate shown in the screenshot are each based on exactly 2 trades. That's nowhere near a track record; it needs many more analysed tickers and quarters before those numbers are trustworthy.
+- **Two of four components are look-ahead contaminated.** `sentiment_drift_component` and `analyst_revision_component` — 50% of the composite weight — are each computed once from present-day data (the full historical drift trend, and a 30-day analyst-revision snapshot) and reused unchanged for every historical quarter of a ticker's series. They're constant across time and leak future information into the past — this alone would undermine any IC computed from them, independent of the sample-size problem above.
 - **Backtest entry dates are heuristic, not real.** Earnings announcement dates are estimated as the 15th of a fixed month per fiscal quarter rather than pulled from an actual corporate calendar — entry timing can be off by weeks.
 - **No transaction costs, slippage, or borrow costs are modelled.** Reported Sharpe/return figures are gross, frictionless numbers.
-- **The Backtest Results page is not currently functional** — see the note under the Backtest Results screenshot above.
 
-None of this invalidates the underlying signal engineering — FinBERT-based tone drift, NLI contradiction detection, guidance-accuracy tracking, and XBRL-based accruals are each independently real and interesting. But the system has not yet demonstrated that its composite score predicts returns, and the honest next step is fixing the look-ahead leakage in two of its four components before the IC number means anything either way.
+None of this invalidates the underlying signal engineering — FinBERT-based tone drift, NLI contradiction detection, guidance-accuracy tracking, and XBRL-based accruals are each independently real and interesting. But the system has not yet demonstrated that its composite score predicts returns: partly because there isn't enough backtested data yet, and partly because the look-ahead leakage in two of its four components would contaminate the result even if there were. Both need fixing before an IC number here means anything.
 
 ---
 
