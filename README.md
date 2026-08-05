@@ -1,7 +1,3 @@
-<div align="center">
-
-<img src="frontend/assets/banner.png" alt="EarningsEdge Banner" width="100%">
-
 # EarningsEdge
 
 **Earnings intelligence for your terminal. No Bloomberg required.**
@@ -46,9 +42,7 @@ It reads **10-K and 10-Q filings** directly from SEC EDGAR, extracts financial s
 ### 📊 Ticker Analysis — Earnings Quality Score
 <img src="frontend/assets/02_ticker_analysis.png" alt="Ticker Analysis" width="100%"/>
 
-*Type any US-listed ticker and hit Analyse — the full pipeline (SEC fetch, embedding, NLP analysis, RAG synthesis) runs here. Composite quality score [-1, +1] with 4-component breakdown, GREEN / YELLOW / RED tone drift alert, and retrieval metadata.*
-
-> ⚠️ This screenshot also predates this session's refactor of this page (sidebar controls moved into the main content area, added a "re-run full analysis" checkbox, changed how cached results are matched) — layout has since changed.
+*Composite quality score [-1, +1] with 4-component breakdown. GREEN / YELLOW / RED tone drift alert alongside retrieval metadata.*
 
 ---
 
