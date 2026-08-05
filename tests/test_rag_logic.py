@@ -52,8 +52,8 @@ print('  embedded JSON ✓')
 
 # Non-JSON
 r5 = _parse_json_response('not json at all')
-assert r5 == {}, f'Got {r5}'
-print('  non-JSON → empty dict ✓')
+assert r5 is None, f'Got {r5}'
+print('  non-JSON → None ✓')
 
 print('_parse_json_response: all 5 cases ✓')
 

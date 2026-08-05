@@ -34,7 +34,6 @@ from config.settings import settings
 from src.rag.llm_client import llm_client
 from src.rag.prompts import (
     SYSTEM_EARNINGS_ANALYST,
-    SYSTEM_GUIDANCE_EXTRACTOR,
     SYSTEM_QUALITY_CHECKER,
     SYSTEM_QUERY_CLASSIFIER,
     build_classification_prompt,
@@ -211,6 +210,13 @@ async def gap_detector_node(state: State) -> State:
         logger.error(f"[{ticker}] Gap detection failed: {exc}")
         gap_data = {"has_gaps": False}
 
+    if gap_data is None:
+        logger.warning(
+            f"[{ticker}] Gap detection LLM response was not valid JSON — "
+            f"falling back to default (no gaps)"
+        )
+        gap_data = {"has_gaps": False}
+
     has_gaps = bool(gap_data.get("has_gaps", False))
     needs_peer = bool(gap_data.get("needs_peer_data", False))
     needs_macro = bool(gap_data.get("needs_macro_data", False))
@@ -243,6 +249,9 @@ async def industry_retrieval_node(state: State) -> State:
 
     Modifies state:
         industry_context: str — peer context for LLM
+        retrieved_chunks: list — peer chunk dicts appended to whatever
+                           company_retrieval_node already put there, so
+                           contradiction_check_node can see them too
 
     Args:
         state: Current EarningsEdgeState.
@@ -253,6 +262,9 @@ async def industry_retrieval_node(state: State) -> State:
     ticker = state.get("ticker", "")
     query = state.get("query", "")
     gap_analysis = state.get("gap_analysis", {})
+
+    if not gap_analysis.get("needs_peer_data", False):
+        return {"industry_context": ""}
 
     logger.info(f"[{ticker}] Industry retrieval — supplementing with peer context")
 
@@ -284,7 +296,8 @@ async def industry_retrieval_node(state: State) -> State:
         f"from {peer_tickers[:3]}"
     )
 
-    return {"industry_context": industry_context}
+    retrieved_chunks = state.get("retrieved_chunks", []) + industry_chunks
+    return {"industry_context": industry_context, "retrieved_chunks": retrieved_chunks}
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +315,9 @@ async def macro_retrieval_node(state: State) -> State:
 
     Modifies state:
         macro_context: str
+        retrieved_chunks: list — macro chunk dicts appended to whatever's
+                           already there, so contradiction_check_node can
+                           see them too
 
     Args:
         state: Current EarningsEdgeState.
@@ -332,7 +348,8 @@ async def macro_retrieval_node(state: State) -> State:
     macro_context = _format_context(macro_chunks, label_prefix="MACRO")
     logger.info(f"Macro retrieval: {len(macro_chunks)} chunks")
 
-    return {"macro_context": macro_context}
+    retrieved_chunks = state.get("retrieved_chunks", []) + macro_chunks
+    return {"macro_context": macro_context, "retrieved_chunks": retrieved_chunks}
 
 
 # ---------------------------------------------------------------------------
@@ -481,7 +498,11 @@ async def synthesis_node(state: State) -> State:
 
     return {
         "final_answer": answer,
-        "context_used": combined_context[:3000],
+        # Must match the [:6000] slice fed to the LLM above — quality_check_node
+        # verifies groundedness against context_used, so any mismatch here
+        # makes claims sourced from characters 3001-6000 unverifiable and
+        # incorrectly flagged as ungrounded.
+        "context_used": combined_context[:6000],
     }
 
 
@@ -522,14 +543,20 @@ async def quality_check_node(state: State) -> State:
             system_prompt=SYSTEM_QUALITY_CHECKER,
             user_prompt=build_quality_check_prompt(context, answer),
         )
-        score = float(result.get("score", 0.5))
-        issues = result.get("issues", [])
-        verdict = result.get("verdict", "partially_grounded")
     except Exception as exc:
         logger.error(f"[{ticker}] Quality check failed: {exc}")
-        score = 0.5
-        issues = []
-        verdict = "unknown"
+        result = {"score": 0.5, "issues": [], "verdict": "unknown"}
+
+    if result is None:
+        logger.warning(
+            f"[{ticker}] Quality check LLM response was not valid JSON — "
+            f"falling back to default score 0.5"
+        )
+        result = {"score": 0.5, "issues": [], "verdict": "unknown"}
+
+    score = float(result.get("score", 0.5))
+    issues = result.get("issues", [])
+    verdict = result.get("verdict", "partially_grounded")
 
     needs_more = (
         score < settings.QUALITY_GATE_THRESHOLD

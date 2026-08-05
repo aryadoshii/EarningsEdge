@@ -1,7 +1,7 @@
 [project]
 name = "earningsedge"
 version = "0.1.0"
-description = "Production-grade multi-modal RAG system for earnings sentiment drift and surprise signal detection"
+description = "Single-user, local RAG system for earnings sentiment drift and surprise signal detection from SEC filings and analyst data"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "EarningsEdge" }]
@@ -28,8 +28,6 @@ dependencies = [
     "yfinance>=0.2.40",
     # RAG evaluation
     "ragas>=0.1.0",
-    # Backtesting
-    "vectorbt>=0.26.0",
     # HTTP
     "httpx>=0.27.0",
     "beautifulsoup4>=4.12.0",
@@ -53,8 +51,6 @@ dependencies = [
     "plotly>=5.24.0",
     "networkx>=3.3",
     # Utilities
-    "tenacity>=9.0.0",
-    "diskcache>=5.6.0",
     "tqdm>=4.66.0",
     "en-core-web-trf",
 ]

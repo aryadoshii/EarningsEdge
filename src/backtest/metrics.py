@@ -40,6 +40,47 @@ from src.ingestion.data_validator import SignalDirection, TradeResult
 TRADING_DAYS_PER_YEAR = 252
 RISK_FREE_RATE_DAILY = settings.RISK_FREE_RATE / TRADING_DAYS_PER_YEAR
 
+# Minimum sample sizes below which a metric is undefined or statistically
+# meaningless, rather than just "small" -- these functions return None below
+# their threshold instead of a number that looks precise but isn't.
+MIN_TRADES_FOR_IC = 5
+# Spearman IC's formula is 1 - 6*d_sq / (n*(n^2-1)), which divides by zero at
+# n=1 (n=0 is trivially undefined too). n=2-4 doesn't divide by zero but a
+# rank correlation over that few points is pure noise, not signal -- 5 is a
+# conventional floor for a bare-minimum-meaningful Spearman estimate.
+MIN_RETURN_EVENTS_FOR_RISK = 2
+# annualised_sharpe/max_drawdown operate on the equity curve, which is flat
+# between trade exits by construction (see build_equity_curve) -- a single
+# trade produces exactly one non-zero move, a "distribution" of one data
+# point. std()/drawdown over that isn't measuring risk, it's just restating
+# that one trade's own return. 2 is the minimum for there to be any variance
+# at all to speak of.
+MIN_TRADES_FOR_WIN_LOSS_RATIO = 2
+# Needs at least one winner and one loser to be defined at all -- with zero
+# losers the ratio is undefined (division by zero), with zero winners it's
+# trivially 0. That's a correctness floor, not just a sample-size heuristic.
+
+
+def _round_or_none(value: float | None, ndigits: int) -> float | None:
+    """round() that passes None through instead of raising on it."""
+    return round(value, ndigits) if value is not None else None
+
+
+def _n_return_events(equity: pd.Series) -> int:
+    """
+    Count distinct non-zero daily moves in an equity curve.
+
+    build_equity_curve holds capital flat between trade exits, so each
+    trade contributes exactly one non-zero day to the series -- this is a
+    proxy for "how many independent trade outcomes does this curve
+    actually reflect," which plain len(equity) (calendar/business days
+    spanned) does not tell you.
+    """
+    if equity.empty or len(equity) < 2:
+        return 0
+    daily_returns = equity.pct_change().dropna()
+    return int((daily_returns != 0).sum())
+
 
 # ---------------------------------------------------------------------------
 # Trade-level metrics
@@ -81,21 +122,31 @@ def avg_loss(trades: list[TradeResult]) -> float:
     return float(np.mean(losses)) if losses else 0.0
 
 
-def win_loss_ratio(trades: list[TradeResult]) -> float:
+def win_loss_ratio(trades: list[TradeResult]) -> float | None:
     """
     Ratio of average win to absolute average loss.
 
     > 1.0 means winners are larger than losers on average.
 
     Returns:
-        Win/loss ratio.  Returns 0.0 if no losers.
+        Win/loss ratio, or None if there are fewer than
+        MIN_TRADES_FOR_WIN_LOSS_RATIO trades, or if every trade landed on
+        the same side (all wins or all losses) -- see the module-level
+        comment on MIN_TRADES_FOR_WIN_LOSS_RATIO for why that's undefined
+        rather than just small-sample.
     """
+    if len(trades) < MIN_TRADES_FOR_WIN_LOSS_RATIO:
+        return None
+    n_wins = sum(1 for t in trades if t.gross_return > 0)
+    n_losses = len(trades) - n_wins
+    if n_wins == 0 or n_losses == 0:
+        return None
     aw = avg_win(trades)
     al = abs(avg_loss(trades))
-    return aw / al if al > 0 else 0.0
+    return aw / al if al > 0 else None
 
 
-def information_coefficient(trades: list[TradeResult]) -> float:
+def information_coefficient(trades: list[TradeResult]) -> float | None:
     """
     Spearman rank correlation between signal score and forward return.
 
@@ -106,10 +157,12 @@ def information_coefficient(trades: list[TradeResult]) -> float:
         trades: List of TradeResult with quality_score and gross_return.
 
     Returns:
-        Spearman IC in [-1, +1].  Returns 0.0 if < 5 trades.
+        Spearman IC in [-1, +1], or None if there are fewer than
+        MIN_TRADES_FOR_IC trades -- see the module-level comment on that
+        constant for why (division by zero at n=1, noise below n=5).
     """
-    if len(trades) < 5:
-        return 0.0
+    if len(trades) < MIN_TRADES_FOR_IC:
+        return None
 
     scores = np.array([t.quality_score for t in trades])
     returns = np.array([t.gross_return for t in trades])
@@ -197,7 +250,7 @@ def annualised_return(equity: pd.Series) -> float:
 def annualised_sharpe(
     equity: pd.Series,
     risk_free_rate: float = settings.RISK_FREE_RATE,
-) -> float:
+) -> float | None:
     """
     Annualised Sharpe Ratio from an equity curve.
 
@@ -208,10 +261,15 @@ def annualised_sharpe(
         risk_free_rate: Annual risk-free rate (default from settings).
 
     Returns:
-        Annualised Sharpe Ratio.  Returns 0.0 for < 20 data points.
+        Annualised Sharpe Ratio, or None if the window is too short
+        (< 20 data points -- too few days to annualise reliably) or too
+        few distinct trades are reflected in it (< MIN_RETURN_EVENTS_FOR_RISK
+        -- see the module-level comment on that constant).
     """
     if equity.empty or len(equity) < 20:
-        return 0.0
+        return None
+    if _n_return_events(equity) < MIN_RETURN_EVENTS_FOR_RISK:
+        return None
 
     daily_returns = equity.pct_change().dropna()
     rf_daily = risk_free_rate / TRADING_DAYS_PER_YEAR
@@ -219,12 +277,12 @@ def annualised_sharpe(
 
     std = excess.std()
     if std == 0 or math.isnan(std):
-        return 0.0
+        return None
 
     return float((excess.mean() / std) * math.sqrt(TRADING_DAYS_PER_YEAR))
 
 
-def max_drawdown(equity: pd.Series) -> float:
+def max_drawdown(equity: pd.Series) -> float | None:
     """
     Maximum peak-to-trough percentage decline.
 
@@ -232,10 +290,15 @@ def max_drawdown(equity: pd.Series) -> float:
         equity: pd.Series with DatetimeIndex.
 
     Returns:
-        Max drawdown as a positive decimal (e.g. 0.25 = 25% drawdown).
+        Max drawdown as a positive decimal (e.g. 0.25 = 25% drawdown), or
+        None if fewer than MIN_RETURN_EVENTS_FOR_RISK distinct trades are
+        reflected in the curve -- see the module-level comment on that
+        constant for why a single trade's "drawdown" isn't a risk metric.
     """
     if equity.empty:
-        return 0.0
+        return None
+    if _n_return_events(equity) < MIN_RETURN_EVENTS_FOR_RISK:
+        return None
     rolling_max = equity.cummax()
     drawdown = (equity - rolling_max) / rolling_max
     return float(abs(drawdown.min()))
@@ -282,15 +345,15 @@ def compute_all_metrics(
     def _slice_metrics(slice_trades: list[TradeResult], eq: pd.Series) -> dict[str, Any]:
         return {
             "trade_count":      len(slice_trades),
-            "sharpe":           round(annualised_sharpe(eq), 3),
+            "sharpe":           _round_or_none(annualised_sharpe(eq), 3),
             "hit_rate":         round(hit_rate(slice_trades), 4),
             "avg_return":       round(avg_return(slice_trades), 5),
             "avg_win":          round(avg_win(slice_trades), 5),
             "avg_loss":         round(avg_loss(slice_trades), 5),
-            "win_loss_ratio":   round(win_loss_ratio(slice_trades), 3),
-            "max_drawdown":     round(max_drawdown(eq), 4),
+            "win_loss_ratio":   _round_or_none(win_loss_ratio(slice_trades), 3),
+            "max_drawdown":     _round_or_none(max_drawdown(eq), 4),
             "annualised_return": round(annualised_return(eq), 4),
-            "ic":               round(information_coefficient(slice_trades), 4),
+            "ic":               _round_or_none(information_coefficient(slice_trades), 4),
         }
 
     result: dict[str, Any] = {
@@ -301,8 +364,8 @@ def compute_all_metrics(
 
     if benchmark_equity is not None and not benchmark_equity.empty:
         result["benchmark"] = {
-            "sharpe":            round(annualised_sharpe(benchmark_equity), 3),
-            "max_drawdown":      round(max_drawdown(benchmark_equity), 4),
+            "sharpe":            _round_or_none(annualised_sharpe(benchmark_equity), 3),
+            "max_drawdown":      _round_or_none(max_drawdown(benchmark_equity), 4),
             "annualised_return": round(annualised_return(benchmark_equity), 4),
         }
 

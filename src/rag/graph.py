@@ -9,20 +9,20 @@ Graph topology:
       │
       ▼
     query_classifier ──────────────────────────────────────────────────┐
-      │                                                                 │
-      ▼                                                                 │
-    company_retrieval                                                   │
-      │                                                                 │
-      ▼                                                                 │
-    gap_detector ──── needs_more=False ──────────────────────────────► │
-      │                                                                 │
-      │ needs_more=True                                                 │
-      ▼                                                                 │
-    industry_retrieval                                                  │
-      │                                                                 │
-      ▼                                                                 │
-    macro_retrieval                                                     │
-      │                                                                 │
+      │                                                                │
+      ▼                                                                │
+    company_retrieval                                                  │
+      │                                                                │
+      ▼                                                                │
+    gap_detector ──── needs_more=False ─────────────────────────────►  │
+      │                                                                │
+      │ needs_more=True                                                │
+      ▼                                                                │
+    industry_retrieval                                                 │
+      │                                                                │
+      ▼                                                                │
+    macro_retrieval                                                    │
+      │                                                                │
       ◄────────────────────────────────────────────────────────────────┘
       │
       ▼

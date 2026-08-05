@@ -12,7 +12,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-result = st.session_state.get("analysis_result")
+result = st.session_state.get("last_result")
 if not result:
     st.markdown(
         '<div class="ee-card" style="text-align:center;padding:4rem 2rem;border-style:dashed;">'

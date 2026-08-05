@@ -10,7 +10,8 @@ Fallback triggers:
     - Groq transient errors (5xx)
     - Groq response timeout (> 30s)
 
-All calls are async.  Retry logic uses exponential backoff via tenacity.
+All calls are async.  Retry logic is a hand-rolled exponential backoff loop
+(plain asyncio.sleep between attempts) — no external retry library is used.
 Every call is logged with model used, token counts, latency, and an
 estimated cost (for portfolio demonstration — both are free tier).
 
@@ -74,9 +75,6 @@ def _get_gemini_model() -> Any:
 _MAX_RETRIES = 3
 _BASE_DELAY_S = 1.0
 _MAX_DELAY_S = 30.0
-
-# HTTP status codes that are retryable
-_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 def _is_rate_limit_error(exc: Exception) -> bool:
@@ -216,22 +214,32 @@ class LLMClient:
         self,
         system_prompt: str,
         user_prompt: str,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """
         Complete and parse the response as JSON.
 
-        Strips markdown code fences before parsing.  Returns an empty dict
-        if parsing fails rather than raising, to keep the pipeline robust.
+        Strips markdown code fences before parsing.  Returns None (rather
+        than raising, or silently returning {}) if parsing fails, so callers
+        can distinguish "the model returned unparseable output" from "the
+        model returned a legitimately empty JSON object" — the two used to
+        be indistinguishable, which meant callers like gap_detector_node and
+        quality_check_node silently misread a parse failure as valid data.
+        The pipeline must still degrade gracefully; callers are responsible
+        for logging and substituting a default when they see None.
 
         Args:
             system_prompt: System message.
             user_prompt:   User content.
 
         Returns:
-            Parsed dict (or list wrapped in {"result": ...}).
+            Parsed dict (or list wrapped in {"result": ...}), or None if
+            the response could not be parsed as JSON by any strategy.
         """
         response = await self.complete(system_prompt, user_prompt, json_mode=True)
-        return _parse_json_response(response.content)
+        parsed = _parse_json_response(response.content)
+        if parsed is None:
+            logger.warning(f"JSON parse failed — raw response: {response.content[:200]}")
+        return parsed
 
     async def stream_complete(
         self,
@@ -409,7 +417,7 @@ def _log_call(response: LLMResponse) -> None:
     )
 
 
-def _parse_json_response(text: str) -> dict[str, Any]:
+def _parse_json_response(text: str) -> dict[str, Any] | None:
     """
     Parse JSON from an LLM response, stripping markdown code fences.
 
@@ -424,7 +432,10 @@ def _parse_json_response(text: str) -> dict[str, Any]:
 
     Returns:
         Parsed dict or {"result": parsed_list} for array responses.
-        Returns {} on parse failure (logged as error).
+        Returns None if all extraction strategies fail — distinct from a
+        legitimately empty {} so callers (via complete_json) can tell parse
+        failure apart from valid-but-empty JSON.  complete_json logs the
+        failure; this function stays a pure parser with no logging side effect.
     """
     # Strip markdown code fences
     cleaned = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
@@ -454,8 +465,7 @@ def _parse_json_response(text: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    logger.error(f"Failed to parse JSON from LLM response: {text[:200]}")
-    return {}
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -478,7 +488,7 @@ if __name__ == "__main__":
         ('```json\n{"score": 0.8}\n```', {"score": 0.8}),
         ('```\n[{"metric": "EPS"}]\n```', {"result": [{"metric": "EPS"}]}),
         ('Some text before {"key": "val"} after', {"key": "val"}),
-        ("not json at all", {}),
+        ("not json at all", None),  # parse failure is now None, not {}
     ]
 
     print("=== JSON parsing tests ===")

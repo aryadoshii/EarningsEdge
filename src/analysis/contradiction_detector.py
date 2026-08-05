@@ -85,11 +85,13 @@ def _get_embed_model() -> Any:
 # NLI label mapping
 # ---------------------------------------------------------------------------
 
-# DeBERTa NLI models output 3 logits: [CONTRADICTION, NEUTRAL, ENTAILMENT]
-# Index 0 = contradiction, 1 = neutral, 2 = entailment
+# cross-encoder/nli-deberta-v3-base outputs 3 logits in this order — verified
+# directly against the model's id2label in its cached HuggingFace config.json:
+# {0: "contradiction", 1: "entailment", 2: "neutral"}.
+# Index 0 = contradiction, 1 = entailment, 2 = neutral
 _CONTRADICTION_IDX = 0
-_NEUTRAL_IDX = 1
-_ENTAILMENT_IDX = 2
+_ENTAILMENT_IDX = 1
+_NEUTRAL_IDX = 2
 
 
 def _softmax(logits: list[float]) -> list[float]:

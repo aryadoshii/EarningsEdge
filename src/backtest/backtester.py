@@ -1,8 +1,8 @@
 """
 Backtesting engine for the EarningsEdge earnings quality signal.
 
-Uses yfinance for price data and implements the backtest logic with both
-a vectorbt-accelerated path (when available) and a pure-pandas fallback.
+Uses yfinance for price data and implements the backtest logic as a
+trade-by-trade pandas simulation.
 
 Strategy mechanics:
     - Signal generated on earnings_date (from BacktestSignal)
@@ -38,14 +38,7 @@ from config.settings import settings
 from src.backtest.signal_generator import _trading_day_offset
 from src.ingestion.data_validator import BacktestSignal, SignalDirection, TradeResult
 
-# Lazy imports for heavy optional dependencies
-_VBT_AVAILABLE = False
-try:
-    import vectorbt as vbt  # type: ignore
-    _VBT_AVAILABLE = True
-except ImportError:
-    logger.debug("vectorbt not installed — using pandas fallback backtester")
-
+# Lazy import for a heavy optional dependency
 try:
     import yfinance as yf  # type: ignore
     _YF_AVAILABLE = True
@@ -102,6 +95,18 @@ async def _fetch_prices(
             logger.warning(f"No price data returned for {ticker} ({start}–{end})")
             return pd.DataFrame()
 
+        # yfinance (>=0.2.31, confirmed on the 1.2.0 installed here) returns
+        # MultiIndex columns like ('Close', 'AAPL') even for a single ticker.
+        # Every downstream function in this file (_get_price, _build_benchmark)
+        # was written against flat columns ("Close", "Open") and indexes/slices
+        # accordingly -- against MultiIndex columns those operations return a
+        # Series/DataFrame instead of a scalar/Series, which is the root cause
+        # of "the truth value of a Series is ambiguous" crashes further down
+        # the call path. Flatten to the price-field level right at the source
+        # so every consumer gets the shape it was already written to expect.
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
         df.index = pd.to_datetime(df.index)
         _price_cache[cache_key] = df
         return df
@@ -130,7 +135,15 @@ def _get_price(df: pd.DataFrame, dt: date, col: str = "Close") -> float | None:
         target = pd.Timestamp(dt + timedelta(days=offset))
         if target in df.index:
             val = df.loc[target, col]
-            return float(val) if not pd.isna(val) else None
+            # Defensive: .loc[row, col] can still return a Series rather than
+            # a scalar (e.g. a duplicate-timestamp row), and `not pd.isna(val)`
+            # on a Series raises "the truth value of a Series is ambiguous"
+            # instead of evaluating a single bool. Reduce to a scalar first.
+            if isinstance(val, pd.Series):
+                val = val.iloc[0] if not val.empty else None
+            if val is None or pd.isna(val):
+                return None
+            return float(val)
     return None
 
 
@@ -142,11 +155,8 @@ class Backtester:
     """
     Runs the EarningsEdge signal through a realistic backtest.
 
-    Supports two execution paths:
-        vectorbt — fast vectorised simulation (preferred when installed)
-        pandas   — fallback, trade-by-trade simulation
-
-    Both paths produce identical TradeResult lists.
+    Executes a trade-by-trade pandas simulation and produces a list of
+    TradeResult objects.
     """
 
     def __init__(
@@ -183,10 +193,7 @@ class Backtester:
             logger.warning("Backtester.run called with empty signal list")
             return [], pd.Series(dtype=float), pd.Series(dtype=float)
 
-        logger.info(
-            f"Backtester starting: {len(signals)} signals  "
-            f"{'vectorbt' if _VBT_AVAILABLE else 'pandas'} engine"
-        )
+        logger.info(f"Backtester starting: {len(signals)} signals  pandas engine")
 
         # Fetch all required price data concurrently
         trade_results = await self._execute_trades(signals)

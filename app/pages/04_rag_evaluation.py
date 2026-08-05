@@ -5,13 +5,6 @@ from pathlib import Path
 
 import streamlit as st
 
-with st.sidebar:
-    st.markdown('<div style="padding:0.5rem 0 0.75rem;border-bottom:1px solid var(--border);margin-bottom:0.9rem;"><div class="ee-label">Evaluation</div></div>', unsafe_allow_html=True)
-    eval_btn = st.button("▶ Run RAGAS", use_container_width=True, type="primary")
-    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-    mlflow_ticker = st.text_input("Filter runs", value="")
-    n_runs = st.slider("Recent runs", 5, 50, 10)
-
 st.markdown(
     '<div class="ee-fade-in" style="padding-bottom:1.25rem;border-bottom:1px solid var(--border);margin-bottom:1.5rem;">'
     '<h1 style="margin:0;font-size:1.75rem;letter-spacing:-0.03em;font-family:\'Sora\',sans-serif;font-weight:600;">RAG Evaluation</h1>'
@@ -20,7 +13,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-result = st.session_state.get("analysis_result")
+# ---------------------------------------------------------------------------
+# Controls — main content area (mirrors 01_ticker_analysis.py's pattern of
+# main-area st.columns() rows rather than sidebar widgets).
+# ---------------------------------------------------------------------------
+
+st.markdown('<div class="ee-label" style="margin-bottom:0.65rem;">Evaluation</div>', unsafe_allow_html=True)
+col_btn, _col_spacer = st.columns([1, 5])
+with col_btn:
+    eval_btn = st.button("▶ Run RAGAS", use_container_width=True, type="primary")
+
+result = st.session_state.get("last_result")
 
 if eval_btn:
     if not result or not result.ragas_input:
@@ -125,6 +128,11 @@ else:
 # ── MLflow table ──────────────────────────────────────────────────────────────
 st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
 st.markdown('<div class="ee-label" style="margin-bottom:0.6rem;">Experiment History</div>', unsafe_allow_html=True)
+col_run_filter, col_run_slider = st.columns([2, 3])
+with col_run_filter:
+    mlflow_ticker = st.text_input("Filter runs", value="")
+with col_run_slider:
+    n_runs = st.slider("Recent runs", 5, 50, 10)
 try:
     from src.evaluation.mlflow_tracker import mlflow_tracker, _mlflow_available
     if _mlflow_available:

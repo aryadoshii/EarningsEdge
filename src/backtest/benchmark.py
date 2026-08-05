@@ -127,14 +127,20 @@ def compute_benchmark_comparison(
             strat_ret[down_days].mean() / bench_ret[down_days].mean()
         ) if bench_ret[down_days].mean() != 0 else 0.0
 
+    # annualised_sharpe/max_drawdown return None when there's too little data
+    # to compute a meaningful value (see src/backtest/metrics.py) -- round()
+    # raises on None, so pass it through unrounded rather than crash.
+    def _round_or_none(value: float | None, ndigits: int) -> float | None:
+        return round(value, ndigits) if value is not None else None
+
     comparison = {
         # Absolute metrics
         "strategy_ann_return":  round(strat_ann_return, 4),
         "benchmark_ann_return": round(bench_ann_return, 4),
-        "strategy_sharpe":      round(annualised_sharpe(strat), 3),
-        "benchmark_sharpe":     round(annualised_sharpe(bench), 3),
-        "strategy_max_dd":      round(max_drawdown(strat), 4),
-        "benchmark_max_dd":     round(max_drawdown(bench), 4),
+        "strategy_sharpe":      _round_or_none(annualised_sharpe(strat), 3),
+        "benchmark_sharpe":     _round_or_none(annualised_sharpe(bench), 3),
+        "strategy_max_dd":      _round_or_none(max_drawdown(strat), 4),
+        "benchmark_max_dd":     _round_or_none(max_drawdown(bench), 4),
         # Relative metrics
         "excess_return":        round(excess_return, 4),
         "tracking_error":       round(tracking_err, 4),

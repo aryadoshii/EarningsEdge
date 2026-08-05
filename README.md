@@ -4,7 +4,7 @@
 
 # EarningsEdge
 
-**Institutional-grade earnings intelligence. No Bloomberg terminal required.**
+**Earnings intelligence for your terminal. No Bloomberg required.**
 
 <br>
 
@@ -24,27 +24,31 @@
 
 ## What Is EarningsEdge?
 
-EarningsEdge is a **production-grade, end-to-end earnings intelligence platform** that processes SEC filings the same way a quant research desk does — except it runs on your laptop, costs nothing, and synthesizes insights in seconds.
+EarningsEdge is a **single-user, local research tool** that processes SEC filings the same way a quant research desk does — except it runs on your laptop, costs nothing, and synthesizes insights in seconds.
 
-It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts financial signals from management language using NLP, detects when executives contradict themselves across quarters, measures the gap between stated guidance and reported actuals, computes a **forensic accruals ratio** from XBRL data, and rolls everything into a single composite quality score — then answers analyst-style questions about any US-listed company using a **multi-hop LangGraph RAG pipeline**.
+It reads **10-K and 10-Q filings** directly from SEC EDGAR, extracts financial signals from management language using NLP, detects when executives contradict themselves across quarters, measures the gap between stated guidance and reported actuals, computes a **forensic accruals ratio** from XBRL data, and rolls everything into a single composite quality score — then answers analyst-style questions about any US-listed company using a **multi-hop LangGraph RAG pipeline**.
 
-**No terminal commands per ticker. Type a symbol. Click Analyse. Get alpha.**
+**Open Ticker Analysis, type a symbol, click Analyse — see the signal for yourself.**
 
 ---
 
 ## 📸 Screenshots
 
-### 🏠 Home — Quick Analysis
+### 🏠 Home — Overview
 <img src="frontend/assets/01_home.png" alt="EarningsEdge Home" width="100%"/>
 
-*Type any US-listed ticker and hit Analyse. The full pipeline — SEC fetch, embedding, NLP analysis, RAG synthesis — runs automatically in the UI.*
+*A descriptive landing page — pipeline overview, the four composite-score weights, and a link to Ticker Analysis. No ticker input or pipeline trigger lives here.*
+
+> ⚠️ This screenshot predates a refactor this session that removed Home's Quick Analysis form — the page no longer looks like this. See [Known Limitations](#known-limitations).
 
 ---
 
 ### 📊 Ticker Analysis — Earnings Quality Score
 <img src="frontend/assets/02_ticker_analysis.png" alt="Ticker Analysis" width="100%"/>
 
-*Composite quality score [-1, +1] with 4-component breakdown. GREEN / YELLOW / RED tone drift alert alongside retrieval metadata.*
+*Type any US-listed ticker and hit Analyse — the full pipeline (SEC fetch, embedding, NLP analysis, RAG synthesis) runs here. Composite quality score [-1, +1] with 4-component breakdown, GREEN / YELLOW / RED tone drift alert, and retrieval metadata.*
+
+> ⚠️ This screenshot also predates this session's refactor of this page (sidebar controls moved into the main content area, added a "re-run full analysis" checkbox, changed how cached results are matched) — layout has since changed.
 
 ---
 
@@ -81,6 +85,8 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
 
 *Composite score → long/short signal → returns. Sharpe ratio, hit rate, information coefficient (IC), alpha, and beta vs. SPY.*
 
+> ⚠️ **Not currently wired up.** This page reads `st.session_state["quality_scores"]`, and nothing anywhere in the codebase writes that key — clicking "Run Backtest" always shows "No quality scores. Run `make analyze TICKER=X` first," even after running an analysis. The screenshot above shows the intended UI, not something you can currently reproduce. Details in [Known Limitations](#known-limitations).
+
 ---
 
 ## The Signal Engine — How the Score is Built
@@ -105,9 +111,9 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
 
 | Factor | The Finance Behind It |
 |---|---|
-| **Sentiment Drift** | Management tone deteriorates before guidance cuts. FinBERT trained on financial filings detects this 1–2 quarters early. |
+| **Sentiment Drift** | Management tone deteriorates before guidance cuts, in theory. FinBERT is fine-tuned on Financial PhraseBank (financial *news* sentences) — applying it to 10-K/10-Q legalese is out-of-distribution, a real limitation of this signal that hasn't been corrected for. |
 | **Guidance Accuracy** | Sandbagging (conservative guidance) predicts positive surprises. Overoptimistic guidance predicts misses. |
-| **Accruals Ratio** | Sloan (1996): high accruals mean earnings aren't backed by cash. The anomaly generates ~10% annual alpha in long/short portfolios. |
+| **Accruals Ratio** | Sloan (1996): high accruals mean earnings aren't backed by cash. The ~10% annual alpha figure is from the academic accruals-anomaly literature generally — not a result this system has reproduced (its own measured IC is close to zero; see Known Limitations). |
 | **Analyst Revisions** | Net revision direction is a proxy for informed money flow. Upgrades before earnings = smart money positioning. |
 
 ---
@@ -117,14 +123,13 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
 ```
                      ┌──────────────────────────────────────────┐
                      │            DATA INGESTION                │
-  SEC EDGAR ─────────┤  10-K · 10-Q · 8-K  (XBRL + full text)  │
-  Earnings Calls ────┤  Prepared remarks · Q&A segmentation     │
+  SEC EDGAR ─────────┤  10-K · 10-Q  (XBRL + full text)         │
   Analyst Consensus ─┤  yfinance · price targets · revisions    │
                      └────────────────┬─────────────────────────┘
                                       │
                      ┌────────────────▼─────────────────────────┐
                      │          PROCESSING PIPELINE             │
-                     │  Parser → 4-strategy Chunker             │
+                     │  Parser → Section-aware Chunker          │
                      │  MetadataTagger (section, ticker, date)  │
                      │  BGE-large-en-v1.5 → ChromaDB            │
                      └────────────────┬─────────────────────────┘
@@ -133,27 +138,31 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
          │                   SIGNAL EXTRACTION                          │
          │  FinBERT Sentiment  ·  Tone Drift Detector (G/Y/R alert)     │
          │  DeBERTa NLI Contradiction Detection (cross-quarter)         │
-         │  spaCy NER — EPS · Revenue · CapEx · Margin guidance         │
+         │  Regex NER — EPS · Revenue · CapEx · Margin guidance         │
          │  XBRL Accruals Ratio  (Net Income − OCF) / Total Assets      │
          └────────────────────────────┬─────────────────────────────────┘
                                       │
          ┌────────────────────────────▼─────────────────────────────────┐
          │             LANGGRAPH RAG PIPELINE  (9 nodes)                │
          │                                                              │
-         │  retrieve_context → gap_detector ──► expand_context         │
-         │        │                                  │                  │
-         │        ▼                                  ▼                  │
-         │  sentiment_node → quality_check ──► synthesize              │
-         │        │                                  │                  │
-         │        ▼                                  ▼                  │
-         │  format_output ────────► RAGAS evaluate → MLflow log        │
+         │  query_classifier → company_retrieval → gap_detector        │
+         │        │                                                     │
+         │        ▼  (if peer/macro context is needed)                  │
+         │  industry_retrieval → macro_retrieval                        │
+         │        │                                                     │
+         │        ▼                                                     │
+         │  contradiction_check → synthesis → quality_check             │
+         │        │  (re-retrieves via company_retrieval if ungrounded, │
+         │        │   up to MAX_RAG_HOPS)                               │
+         │        ▼                                                     │
+         │  ragas_prep → END  (packages inputs for evaluation)          │
          └────────────────────────────┬─────────────────────────────────┘
                                       │
                      ┌────────────────▼─────────────────────────┐
                      │       GROQ / GEMINI LLM SYNTHESIS        │
                      │  llama-3.3-70b  (primary)                │
                      │  Gemini 1.5 Flash  (auto-failover)       │
-                     │  Source-cited · RAGAS-evaluated          │
+                     │  Source-cited · LLM-graded for grounding │
                      └────────────────┬─────────────────────────┘
                                       │
                      ┌────────────────▼─────────────────────────┐
@@ -161,6 +170,8 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
                      │  Auto-ingest · Watchlist · Backtest      │
                      └──────────────────────────────────────────┘
 ```
+
+*RAGAS/MLflow evaluation is a separate, manual step from the RAG Evaluation dashboard page — not an automatic part of the graph above; `ragas_prep` only packages the inputs it would need.*
 
 ---
 
@@ -170,16 +181,16 @@ It reads **10-K, 10-Q, and 8-K filings** directly from SEC EDGAR, extracts finan
 |---|---|---|
 | **LLM Primary** | Groq `llama-3.3-70b-versatile` | Sub-second inference, free tier |
 | **LLM Fallback** | Google Gemini 1.5 Flash | Auto-switches on rate limit |
-| **Embeddings** | `BAAI/bge-large-en-v1.5` | MTEB top-tier, 768-dim, financial text |
-| **Sentiment NLP** | `ProsusAI/finbert` | Fine-tuned on 10-K/10-Q language |
+| **Embeddings** | `BAAI/bge-large-en-v1.5` | MTEB top-tier, 1024-dim, financial text |
+| **Sentiment NLP** | `ProsusAI/finbert` | Fine-tuned on financial *news* (Financial PhraseBank) — not SEC filings; out-of-distribution on 10-K/10-Q text |
 | **Contradiction** | `cross-encoder/nli-deberta-v3-base` | NLI scoring for cross-quarter consistency |
-| **NER** | spaCy `en_core_web_trf` + regex rules | Guidance extraction (EPS, revenue, capex) |
+| **NER** | Regex rules (`ner_extractor.extract_guidance`) | Guidance extraction (EPS, revenue, capex) |
 | **Orchestration** | LangGraph (9-node state machine) | Multi-hop retrieval with conditional routing |
 | **Vector Store** | ChromaDB (local persistent) | Rich metadata filtering by section, quarter |
-| **Validation** | Pydantic v2 (21 models) | Typed pipeline, zero unvalidated dicts |
+| **Validation** | Pydantic v2 (17 models + 8 enums) | Typed pipeline, zero unvalidated dicts |
 | **Market Data** | yfinance | Price history, analyst consensus, revisions |
-| **Backtesting** | vectorbt + pandas | Sharpe, IC, alpha, beta, hit rate |
-| **RAG Evaluation** | RAGAS | Faithfulness, relevancy, context recall |
+| **Backtesting** | pandas (trade-by-trade simulation) | Sharpe, IC, alpha, beta, hit rate |
+| **RAG Evaluation** | LLM-as-judge fallback (native RAGAS only if `OPENAI_API_KEY` is set) | Faithfulness, answer relevance |
 | **Experiment Tracking** | MLflow | Latency, grounding score, retrieval metrics |
 | **Dashboard** | Streamlit + Plotly | Zero-click ingestion, live progress display |
 | **Package Manager** | uv | 10–100× faster than pip |
@@ -221,20 +232,19 @@ make run
 # → http://localhost:8501
 ```
 
-**That's it.** Type any US-listed ticker, click Analyse — the full pipeline runs automatically in the UI.
+**That's it.** Open the Ticker Analysis page, type any US-listed ticker, click Analyse — the full pipeline runs automatically in the UI.
 
 ---
 
 ## Make Commands
 
 ```bash
-make setup              # install deps + download spaCy transformer model
+make setup              # install deps + download spaCy transformer model (currently unused — NER runs on regex only)
 make run                # launch Streamlit at localhost:8501
-make ingest  TICKER=X   # ingest SEC filings, transcripts, analyst data
+make ingest  TICKER=X   # ingest SEC filings + analyst data
 make embed   TICKER=X   # embed chunks into ChromaDB
 make analyze TICKER=X   # sentiment + drift + contradictions + scoring
-make backtest           # run backtesting engine
-make test               # pytest suite
+make test               # run tests/test_rag_logic.py (module-level asserts, not pytest test functions)
 make lint               # ruff + mypy
 make mlflow             # MLflow UI at localhost:5000
 make clean              # wipe processed data + ChromaDB
@@ -251,14 +261,14 @@ earningsedge/
 │   └── .env.example
 ├── src/
 │   ├── ingestion/
-│   │   ├── sec_fetcher.py       # EDGAR REST API — 10-K, 10-Q, 8-K, XBRL parsing
-│   │   ├── transcript_fetcher.py# Earnings call transcript parser + section tagger
+│   │   ├── sec_fetcher.py       # EDGAR REST API — supports 10-K/10-Q/8-K + XBRL, but pipeline_runner only ever requests 10-K/10-Q
+│   │   ├── transcript_fetcher.py# Earnings call transcript parser (not wired into the ingest pipeline — zero callers outside its own __main__)
 │   │   ├── analyst_fetcher.py   # yfinance — consensus, targets, revision direction
-│   │   └── data_validator.py    # 21 Pydantic v2 models — typed end-to-end
+│   │   └── data_validator.py    # 17 Pydantic v2 models + 8 enums — typed end-to-end
 │   ├── processing/
-│   │   ├── chunker.py           # 4-strategy chunking (fixed/semantic/section/sliding)
+│   │   ├── chunker.py           # 4 strategies implemented; only section_aware runs in the live pipeline (10-K/10-Q only — semantic needs 8-K, speaker_turn needs transcripts)
 │   │   ├── document_parser.py   # Section extraction (MDA, Risk Factors, Guidance…)
-│   │   ├── ner_extractor.py     # spaCy + regex — EPS, revenue, capex, margin targets
+│   │   ├── ner_extractor.py     # Regex guidance extraction (extract_guidance); spaCy entity extraction (extract_entities) has zero call sites
 │   │   └── metadata_tagger.py   # Enriches chunks with financial metadata
 │   ├── embeddings/
 │   │   ├── embedder.py          # BGE-large-en-v1.5 + ChromaDB ingestion
@@ -277,13 +287,13 @@ earningsedge/
 │   │   └── llm_client.py        # Groq primary + Gemini fallback with auto-switch
 │   ├── backtest/
 │   │   ├── signal_generator.py  # Composite score → long/short signal
-│   │   ├── backtester.py        # vectorbt engine
+│   │   ├── backtester.py        # pandas trade-by-trade engine
 │   │   └── metrics.py           # Sharpe, IC, alpha, beta, hit rate
 │   └── evaluation/
-│       ├── ragas_evaluator.py   # Faithfulness, relevancy, precision, recall
+│       ├── ragas_evaluator.py   # Faithfulness + answer relevance (real LLM scores); context_precision/recall are placeholders unless OPENAI_API_KEY enables native RAGAS
 │       └── mlflow_tracker.py    # Experiment logging
 ├── app/
-│   ├── main.py                  # Landing page + Quick Analysis (auto-ingest)
+│   ├── main.py                  # st.navigation shell over 6 pages — no inputs or pipeline triggers of its own
 │   ├── pages/
 │   │   ├── 00_watchlist.py      # Batch ingestion + data freshness manager
 │   │   ├── 01_ticker_analysis.py# Auto-ingest + RAG query + score display
@@ -315,7 +325,7 @@ The accruals anomaly is one of the most replicated findings in empirical asset p
 Accruals Ratio = (Net Income − Operating Cash Flow) / Total Assets
 ```
 
-When this ratio is **high**, earnings greatly exceed cash generation — a sign of aggressive revenue recognition or expense deferral. These inflated earnings mean-revert. A hedge portfolio long low-accrual and short high-accrual companies historically generates ~10% annual alpha with low market beta.
+When this ratio is **high**, earnings greatly exceed cash generation — a sign of aggressive revenue recognition or expense deferral. These inflated earnings mean-revert. A hedge portfolio long low-accrual and short high-accrual companies historically generates ~10% annual alpha with low market beta — **this figure is from the academic accruals-anomaly literature, not from backtesting this system**, whose own measured Information Coefficient is close to zero (see Known Limitations below).
 
 EarningsEdge computes this from **XBRL-tagged financial data** in SEC filings — the same structured dataset used by institutional data vendors like FactSet and Bloomberg — and weights it 25% in the composite score.
 
@@ -334,6 +344,20 @@ Consumer         NKE   COST  MCD   SBUX   TGT
 ```
 
 > Companies listed exclusively on non-US exchanges (LSE, TSX, Euronext) do not file with SEC EDGAR. Foreign private issuers using Form 20-F may have limited data coverage.
+
+---
+
+## Known Limitations
+
+Validating this system end-to-end surfaced several honest findings worth stating directly rather than glossing over:
+
+- **Realised Information Coefficient is close to zero.** The Spearman rank correlation between the composite score and forward returns comes out near 0 in backtesting — as currently weighted and computed, the signal has not demonstrated measurable predictive power.
+- **Two of four components are look-ahead contaminated.** `sentiment_drift_component` and `analyst_revision_component` — 50% of the composite weight — are each computed once from present-day data (the full historical drift trend, and a 30-day analyst-revision snapshot) and reused unchanged for every historical quarter of a ticker's series. They're constant across time and leak future information into the past, which is almost certainly why the measured IC is flat.
+- **Backtest entry dates are heuristic, not real.** Earnings announcement dates are estimated as the 15th of a fixed month per fiscal quarter rather than pulled from an actual corporate calendar — entry timing can be off by weeks.
+- **No transaction costs, slippage, or borrow costs are modelled.** Reported Sharpe/return figures are gross, frictionless numbers.
+- **The Backtest Results page is not currently functional** — see the note under the Backtest Results screenshot above.
+
+None of this invalidates the underlying signal engineering — FinBERT-based tone drift, NLI contradiction detection, guidance-accuracy tracking, and XBRL-based accruals are each independently real and interesting. But the system has not yet demonstrated that its composite score predicts returns, and the honest next step is fixing the look-ahead leakage in two of its four components before the IC number means anything either way.
 
 ---
 

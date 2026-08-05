@@ -220,9 +220,17 @@ async def run_analysis_pipeline(ticker: str) -> dict[str, Any]:
                 guidance_by_period.setdefault(key, []).extend(entities)
 
     tracker = GuidanceAccuracyTracker()
-    guidance_records = tracker.match_guidance_to_actuals(
-        guidance_by_period, filings
-    )
+    try:
+        guidance_records = tracker.match_guidance_to_actuals(
+            guidance_by_period, filings
+        )
+    except Exception as exc:
+        # A failure here must not discard the embedding, FinBERT, and NLI
+        # work already done above for this run — fall back to no guidance
+        # records so EarningsQualityScorer treats guidance_accuracy_component
+        # as neutral (0.0) and analysis.json still gets written.
+        logger.error(f"[{ticker}] Guidance matching failed: {exc}")
+        guidance_records = []
 
     # ── Composite quality score ───────────────────────────────────────
     from src.analysis.earnings_quality_scorer import EarningsQualityScorer

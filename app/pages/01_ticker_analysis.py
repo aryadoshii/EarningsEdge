@@ -73,62 +73,16 @@ def _run_full_pipeline(ticker: str) -> None:
 
         status.update(label=f"{ticker} ready — running RAG query…", state="complete")
 
-# ---------------------------------------------------------------------------
-# Sidebar
-# ---------------------------------------------------------------------------
 
-with st.sidebar:
-    st.markdown(
-        '<div style="padding:0.5rem 0 0.75rem;border-bottom:1px solid var(--border);'
-        'margin-bottom:0.9rem;"><div class="ee-label">Analysis Controls</div></div>',
-        unsafe_allow_html=True,
-    )
-    ticker  = st.text_input("Ticker", value="AAPL").upper().strip()
-    quarter = st.selectbox("Quarter", ["Q1","Q2","Q3","Q4"], index=0)
-    year    = st.number_input("Year", min_value=2019, max_value=2026, value=2025)
-    query   = st.text_area("Custom Query", placeholder="Leave blank for full analysis", height=72)
-
-    # Data-freshness indicator
-    age = _data_age_days(ticker)
-    if age is None:
-        st.markdown(
-            '<div style="margin:0.4rem 0 0.6rem;padding:0.5rem 0.7rem;'
-            'background:rgba(220,80,60,0.08);border:1px solid rgba(220,80,60,0.25);'
-            'border-radius:8px;font-family:\'Space Mono\',monospace;font-size:0.62rem;'
-            'color:var(--red);">◈ No local data — pipeline will run automatically</div>',
-            unsafe_allow_html=True,
-        )
-    elif age > 7:
-        st.markdown(
-            f'<div style="margin:0.4rem 0 0.6rem;padding:0.5rem 0.7rem;'
-            f'background:rgba(200,140,0,0.08);border:1px solid rgba(200,140,0,0.25);'
-            f'border-radius:8px;font-family:\'Space Mono\',monospace;font-size:0.62rem;'
-            f'color:#b8860b;">⚠ Data is {age:.0f}d old — consider refreshing</div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f'<div style="margin:0.4rem 0 0.6rem;padding:0.5rem 0.7rem;'
-            f'background:rgba(60,160,80,0.08);border:1px solid rgba(60,160,80,0.25);'
-            f'border-radius:8px;font-family:\'Space Mono\',monospace;font-size:0.62rem;'
-            f'color:var(--green);">✓ Data cached ({age:.1f}d ago)</div>',
-            unsafe_allow_html=True,
-        )
-
-    col_run, col_refresh = st.columns([2, 1])
-    with col_run:
-        run_btn = st.button("▶ Run Analysis", use_container_width=True, type="primary")
-    with col_refresh:
-        refresh_btn = st.button("↺", use_container_width=True, help="Force re-ingest (even if data exists)")
-
-    st.markdown(
-        '<div style="margin-top:0.75rem;padding:0.65rem 0.75rem;background:rgba(255,250,244,0.5);'
-        'border:1px solid var(--border);border-radius:12px;">'
-        '<div class="ee-label" style="margin-bottom:0.25rem;">Model</div>'
-        f'<div style="font-family:\'Space Mono\',monospace;font-size:0.65rem;color:var(--text-muted);">{settings.GROQ_MODEL}</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+def _run_embed_and_analyze(ticker: str) -> None:
+    """Chunks exist but analysis.json is missing — run embed + analyze only."""
+    from src.pipeline_runner import run_embed_pipeline, run_analysis_pipeline
+    with st.status(f"Running analysis for {ticker}…", expanded=True) as status:
+        st.write("Embedding…")
+        asyncio.run(run_embed_pipeline(ticker))
+        st.write("Analysing…")
+        asyncio.run(run_analysis_pipeline(ticker))
+        status.update(label="Analysis complete", state="complete")
 
 # ---------------------------------------------------------------------------
 # Page header
@@ -137,34 +91,108 @@ with st.sidebar:
 st.markdown(
     '<div class="ee-page-header ee-fade-in" style="padding-bottom:1.25rem;border-bottom:1px solid var(--border);margin-bottom:1.5rem;">'
     '<h1 style="margin:0;font-size:1.75rem;letter-spacing:-0.03em;font-family:\'Sora\',sans-serif;font-weight:600;">Ticker Analysis</h1>'
-    '<p style="margin:0.2rem 0 0;font-size:0.8rem;color:var(--text-muted);">Earnings quality scoring · Management credibility · Tone drift · NLI contradictions</p>'
+    '<p style="margin:0.2rem 0 0;font-size:0.8rem;color:var(--text-muted);">'
+    'Ask follow-up questions against an already-analysed ticker · Earnings quality scoring · '
+    'Management credibility · Tone drift · NLI contradictions</p>'
     '</div>',
     unsafe_allow_html=True,
 )
 
 # ---------------------------------------------------------------------------
+# Controls — main content area (Ticker Analysis is the only page that runs
+# the pipeline; Overview is descriptive-only and holds no analysis state).
+# ---------------------------------------------------------------------------
+
+_quarters = ["Q1", "Q2", "Q3", "Q4"]
+
+st.markdown('<div class="ee-label" style="margin-bottom:0.65rem;">Analysis Controls</div>', unsafe_allow_html=True)
+col_ticker, col_quarter, col_year, col_btn = st.columns([3, 1, 1, 1])
+with col_ticker:
+    ticker = st.text_input("Ticker Symbol", value="AAPL", placeholder="AAPL, MSFT…").upper().strip()
+with col_quarter:
+    quarter = st.selectbox("Quarter", _quarters, index=0)
+with col_year:
+    year = st.number_input("Year", min_value=2019, max_value=2026, value=2025)
+with col_btn:
+    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+    run_btn = st.button("▶ Analyse", use_container_width=True)
+
+query = st.text_area(
+    "Custom Query",
+    placeholder="Ask a specific question about this ticker's earnings quality — leave blank for a full analysis report",
+    height=72,
+)
+
+# Data freshness caption + explicit, separate "force full re-run" control.
+#
+# The checkbox is rendered first (into col_force) so its value is known
+# before the caption text (rendered into col_fresh) is built — the two
+# `with` blocks populate their columns independently of execution order,
+# so this doesn't change the on-screen layout, just which runs first.
+has_chunks   = _has_chunks(ticker)
+has_analysis = _has_analysis(ticker)
+
+col_fresh, col_force = st.columns([3, 2])
+
+with col_force:
+    force_refresh = st.checkbox(
+        "Re-run full analysis (ingest + embed + FinBERT)",
+        value=False,
+        help="Forces a fresh SEC fetch, re-embedding, and re-scoring even if cached data already exists. "
+             "Leave unchecked to just ask a question against the existing analysis — much faster.",
+    )
+
+# These are the exact same booleans the pipeline trigger logic below uses to
+# decide what actually runs — the caption is derived from them directly so
+# it can never say something different from what clicking Analyse will do.
+needs_ingest   = force_refresh or not has_chunks
+needs_analysis = force_refresh or not has_analysis
+
+if needs_ingest:
+    if has_chunks or has_analysis:
+        # force_refresh is forcing a full redo even though some/all local data exists
+        caveat = " even though cached data exists" if (has_chunks and has_analysis) else ""
+        caption_msg = (
+            f"⟳ Re-run enabled — clicking Analyse will re-fetch, re-embed, and re-score "
+            f"{ticker} from scratch (2-4 min){caveat}."
+        )
+    else:
+        caption_msg = (
+            f"◈ No local data for {ticker} — first run will fetch filings, embed, "
+            f"and analyse (2-4 min)."
+        )
+elif needs_analysis:
+    caption_msg = (
+        "◈ Filings cached, but not yet analysed — clicking Analyse will embed "
+        "and score this ticker (~1-2 min)."
+    )
+else:
+    age = _data_age_days(ticker)
+    caption_msg = (
+        f"✓ Cached data ({age:.1f}d old) — Analyse will query the existing analysis instantly. "
+        "Check 'Re-run full analysis' to force a fresh fetch."
+    )
+
+with col_fresh:
+    st.caption(caption_msg)
+
+st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
 # Pipeline trigger logic
 # ---------------------------------------------------------------------------
 
-if (run_btn or refresh_btn) and ticker:
-    force_refresh = bool(refresh_btn)
-    needs_ingest  = force_refresh or not _has_chunks(ticker)
-    needs_analysis = force_refresh or not _has_analysis(ticker)
-
-    # Run pipeline stages as needed
+if run_btn and ticker:
+    # needs_ingest / needs_analysis already computed above for the caption —
+    # reused here unchanged so the run always matches what was just displayed.
     if needs_ingest:
         _run_full_pipeline(ticker)
     elif needs_analysis:
-        # Chunks exist but analysis is missing — run analysis only
-        from src.pipeline_runner import run_embed_pipeline, run_analysis_pipeline
-        with st.status(f"Running analysis for {ticker}…", expanded=True) as status:
-            st.write("Embedding…")
-            asyncio.run(run_embed_pipeline(ticker))
-            st.write("Analysing…")
-            asyncio.run(run_analysis_pipeline(ticker))
-            status.update(label="Analysis complete", state="complete")
+        _run_embed_and_analyze(ticker)
+    # else: chunks.json + analysis.json already cached and no force-refresh —
+    # skip straight to the RAG query below. No re-embedding or re-scoring
+    # just to answer a follow-up question about a ticker already analysed.
 
-    # Now run the RAG query
     with st.spinner(f"Querying {ticker} {quarter} {year}…"):
         try:
             from src.rag.multi_hop_chain import multi_hop_chain
@@ -172,12 +200,14 @@ if (run_btn or refresh_btn) and ticker:
             result = asyncio.run(
                 multi_hop_chain.analyse_with_full_pipeline(
                     ticker=ticker, query=query or None,
-                    quarter={"Q1":Q.Q1,"Q2":Q.Q2,"Q3":Q.Q3,"Q4":Q.Q4}[quarter],
+                    quarter={"Q1": Q.Q1, "Q2": Q.Q2, "Q3": Q.Q3, "Q4": Q.Q4}[quarter],
                     year=int(year),
                 )
             )
-            st.session_state["analysis_result"] = result
-            st.session_state["analysis_ticker"]  = ticker
+            # Shared with app/pages/home.py — running from either page updates
+            # the same cached result the other page reads.
+            st.session_state["last_result"] = result
+            st.session_state["last_ticker"] = ticker
         except Exception as e:
             st.error(f"Error: {e}")
             st.stop()
@@ -186,29 +216,33 @@ if (run_btn or refresh_btn) and ticker:
 # Display results
 # ---------------------------------------------------------------------------
 
-result = st.session_state.get("analysis_result")
+result = st.session_state.get("last_result")
 
-# Clear cached result if ticker changed
-if result and st.session_state.get("analysis_ticker") != ticker:
-    result = None
+# Only treat the cached result as "current" if it matches the active selection.
+selection_matches = bool(
+    result
+    and result.ticker == ticker
+    and result.quarter == quarter
+    and result.year == int(year)
+)
 
-if not result:
+if not selection_matches:
     st.markdown(
         '<div class="ee-card" style="text-align:center;padding:3.5rem 2rem;border-style:dashed;">'
         '<div style="font-size:2rem;opacity:0.2;margin-bottom:0.75rem;">◈</div>'
         '<div style="font-family:\'Sora\',sans-serif;font-size:0.875rem;color:var(--text-muted);">'
-        'Select a ticker and click <strong style="color:var(--taupe);">Run Analysis</strong></div>'
+        'Select a ticker and click <strong style="color:var(--taupe);">Analyse</strong></div>'
         '<div style="font-family:\'Space Mono\',monospace;font-size:0.65rem;color:var(--text-dim);margin-top:0.4rem;">'
         'Data is fetched automatically — no terminal commands needed</div></div>',
         unsafe_allow_html=True,
     )
     st.stop()
 
-qs     = result.quality_score_obj
-score  = result.composite_score
-signal = result.signal
-dr     = result.tone_drift_report or {}
-alert  = dr.get("alert_level", "GREEN")
+qs      = result.quality_score_obj
+score   = result.composite_score
+signal  = result.signal
+dr      = result.tone_drift_report or {}
+alert   = dr.get("alert_level", "GREEN")
 contras = result.contradictions or []
 
 # ── Hero: score + components ──────────────────────────────────────────────────

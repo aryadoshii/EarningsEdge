@@ -5,7 +5,7 @@ TICKER  ?= AAPL
 PYTHON  := uv run python
 PYTEST  := uv run pytest
 
-.PHONY: help setup ingest embed analyze backtest run test lint mlflow clean fmt
+.PHONY: help setup ingest embed analyze run test lint mlflow clean fmt
 
 # ── Default ─────────────────────────────────────────────────────────────────
 help:
@@ -16,7 +16,6 @@ help:
 	@echo "  make ingest TICKER=X    Download + process SEC filings & transcripts"
 	@echo "  make embed  TICKER=X    Embed chunks → ChromaDB"
 	@echo "  make analyze TICKER=X   Run full analysis (sentiment, drift, RAG)"
-	@echo "  make backtest           Run backtesting engine on all tickers"
 	@echo "  make run                Launch Streamlit dashboard"
 	@echo "  make test               Run pytest suite"
 	@echo "  make lint               Run ruff + mypy"
@@ -33,16 +32,15 @@ setup:
 	@echo "Setup complete. Copy config/.env.example → .env and fill in API keys."
 
 # ── Data ingestion ──────────────────────────────────────────────────────────
+# Note: this used to shell out to sec_fetcher/transcript_fetcher/analyst_fetcher/
+# document_parser/chunker/ner_extractor/metadata_tagger as separate --ticker
+# invocations. Most of those __main__ blocks have no argparse (they just run
+# their own hardcoded smoke tests) and never wrote to data/processed/, so
+# `make ingest` silently did nothing. pipeline_runner.py is the actual,
+# working ingest path — it's what `make embed` already used under the hood.
 ingest:
 	@echo "→ Ingesting data for $(TICKER)"
-	$(PYTHON) -m src.ingestion.sec_fetcher --ticker $(TICKER)
-	$(PYTHON) -m src.ingestion.transcript_fetcher --ticker $(TICKER)
-	$(PYTHON) -m src.ingestion.analyst_fetcher --ticker $(TICKER)
-	@echo "→ Processing documents"
-	$(PYTHON) -m src.processing.document_parser --ticker $(TICKER)
-	$(PYTHON) -m src.processing.chunker --ticker $(TICKER)
-	$(PYTHON) -m src.processing.ner_extractor --ticker $(TICKER)
-	$(PYTHON) -m src.processing.metadata_tagger --ticker $(TICKER)
+	$(PYTHON) -m src.pipeline_runner --ticker $(TICKER) --ingest
 
 # ── Embedding ───────────────────────────────────────────────────────────────
 embed:
@@ -53,11 +51,6 @@ embed:
 analyze:
 	@echo "→ Running analysis pipeline for $(TICKER)"
 	$(PYTHON) -m src.pipeline_runner --ticker $(TICKER) --analyze
-
-# ── Backtest ─────────────────────────────────────────────────────────────────
-backtest:
-	@echo "→ Running backtesting engine"
-	$(PYTHON) -m src.backtest.backtester
 
 # ── Streamlit ────────────────────────────────────────────────────────────────
 run:

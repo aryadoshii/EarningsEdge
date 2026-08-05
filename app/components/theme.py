@@ -31,6 +31,8 @@ THEME_CSS = """
   --red-dim: rgba(184, 132, 118, 0.14);
   --yellow: #c7ab63;
   --yellow-dim: rgba(199, 171, 99, 0.14);
+  --slate: #93a4b3;
+  --slate-dim: rgba(147, 164, 179, 0.14);
   --text: #241d17;
   --text-muted: #6e6056;
   --text-dim: #9b8a7d;
@@ -67,8 +69,6 @@ html, body,
   background: linear-gradient(180deg, rgba(173, 156, 142, 0.18) 0%, rgba(255, 250, 244, 0.92) 22%, rgba(247, 230, 202, 0.96) 100%) !important;
   border-right: 1px solid var(--border) !important;
 }
-[data-testid="stSidebarNav"] { display: none !important; }
-
 [data-testid="stPageLink"] a {
   display: flex !important;
   align-items: center !important;
@@ -109,7 +109,7 @@ h1, h2, h3 {
 }
 p, li { font-family: var(--sans) !important; color: var(--text) !important; }
 
-#MainMenu, footer, header,
+#MainMenu, footer,
 [data-testid="stToolbar"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"] {
@@ -117,8 +117,28 @@ p, li { font-family: var(--sans) !important; color: var(--text) !important; }
   visibility: hidden !important;
 }
 
-/* Sidebar toggle buttons */
-[data-testid="stSidebarCollapseButton"] button,
+/* Make the top header bar invisible but keep it in DOM so expand button works */
+header[data-testid="stHeader"] {
+  background: transparent !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+/* Force sidebar always visible — override Streamlit's localStorage collapsed state */
+section[data-testid="stSidebar"] {
+  transform: none !important;
+  min-width: 244px !important;
+  width: 244px !important;
+}
+
+/* Hide collapse button — sidebar is always open, no need to collapse */
+[data-testid="stSidebarCollapseButton"] {
+  display: none !important;
+}
+
+/* Style the expand button (shown when sidebar is collapsed in Streamlit default flow) */
 [data-testid="stExpandSidebarButton"] button {
   background: var(--surface-strong) !important;
   border: 1px solid var(--border-strong) !important;

@@ -251,12 +251,13 @@ class GuidanceAccuracyTracker:
                     filing_source=actual_filing.filing_url if actual_filing else "",
                 ))
 
+                acc_str = f"{accuracy:.3f}" if accuracy is not None else "N/A"
+                bias_str = f"{bias:.3f}" if bias is not None else "N/A"
                 logger.debug(
                     f"[{ticker}] {guidance_q.value} {guidance_yr} "
                     f"{entity.metric_type.value}: "
                     f"guided_mid={guided_mid}  actual={actual}  "
-                    f"accuracy={accuracy:.3f if accuracy else 'N/A'}  "
-                    f"bias={bias:.3f if bias else 'N/A'}"
+                    f"accuracy={acc_str}  bias={bias_str}"
                 )
 
         logger.info(

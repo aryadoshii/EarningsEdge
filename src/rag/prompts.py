@@ -12,9 +12,10 @@ this module import-free and independently testable.
 Sections:
     SYSTEM_PROMPTS   — Role-setting prompts passed as the system message
     SYNTHESIS_PROMPTS — Main analysis generation
-    EXTRACTION_PROMPTS — Structured data extraction (guidance, entities)
     CLASSIFICATION_PROMPTS — Query intent classification
+    GAP_DETECTION_PROMPTS — Identifies missing context during multi-hop retrieval
     EVALUATION_PROMPTS — Self-grounding quality check
+    FORMATTING_HELPERS — Non-prompt helpers, e.g. format_contradictions()
 """
 
 from __future__ import annotations
@@ -40,12 +41,6 @@ Hard rules you NEVER break:
 4. Never hallucinate financial figures — if a number isn't in the context, say so
 5. Distinguish between what management SAID (transcript) vs what was FILED (10-Q/10-K)
 6. Your output must be structured exactly as specified — no deviation
-"""
-
-SYSTEM_GUIDANCE_EXTRACTOR = """\
-You are a financial data extraction engine. Your only job is to extract
-forward-looking numerical guidance from financial text and output valid JSON.
-You do not summarise, explain, or add commentary. Output ONLY a JSON array.
 """
 
 SYSTEM_QUERY_CLASSIFIER = """\
@@ -103,31 +98,6 @@ Score: {quality_score} → {signal}
 """
 
 # ---------------------------------------------------------------------------
-# Guidance extraction prompt
-# ---------------------------------------------------------------------------
-
-GUIDANCE_EXTRACTION_PROMPT = """\
-Extract all forward-looking numerical guidance from the following financial text.
-
-For each piece of guidance found, output a JSON object with these fields:
-  - metric: one of ["EPS", "revenue", "capex", "margin", "growth", "other"]
-  - value_low: lower bound of range (number, null if not a range)
-  - value_high: upper bound of range (number, null if not a range)
-  - unit: "USD" | "%" | "USD/share" | "bps" | "shares" | "other"
-  - fiscal_period_referenced: string like "Q4 2024" or "FY2025" (empty string if not stated)
-  - confidence_level: "explicit" (direct number stated) or "implicit" (inferred from context)
-
-Rules:
-- Convert all dollar values to full numbers (e.g. "$94.9 billion" → 94900000000)
-- If guidance is given as a single value (not a range), set value_low to that value and value_high to null
-- If no guidance is found anywhere in the text, return an empty array: []
-- Output ONLY valid JSON — no markdown, no explanation, no preamble
-
-TEXT:
-{text}
-"""
-
-# ---------------------------------------------------------------------------
 # Query classification prompt
 # ---------------------------------------------------------------------------
 
@@ -178,47 +148,6 @@ Output ONLY a JSON object with:
 """
 
 # ---------------------------------------------------------------------------
-# Industry / peer context prompt
-# ---------------------------------------------------------------------------
-
-PEER_CONTEXT_PROMPT = """\
-You are supplementing analysis of {ticker} with industry peer context.
-
-PRIMARY COMPANY CONTEXT:
-{company_context}
-
-PEER COMPANY CONTEXT ({peer_tickers}):
-{peer_context}
-
-Based on this combined context, how does {ticker}'s earnings quality and
-management tone compare to its peers? Focus on:
-  1. Relative sentiment drift direction
-  2. Guidance accuracy vs peers
-  3. Accruals quality relative to sector
-  
-Be specific — cite peer company names and quarters. Keep response under 200 words.
-"""
-
-# ---------------------------------------------------------------------------
-# Macro context injection prompt
-# ---------------------------------------------------------------------------
-
-MACRO_CONTEXT_PROMPT = """\
-Relevant macro context for interpreting {ticker}'s earnings:
-
-MACRO / SECTOR CONTEXT:
-{macro_context}
-
-How does this macro context affect the interpretation of {ticker}'s
-earnings quality signals? Specifically:
-  - Does the macro environment explain any tone deterioration?
-  - Are sector headwinds masking company-specific issues?
-  - Does the earnings quality score need adjusting for macro tailwinds/headwinds?
-
-Keep response under 150 words. Be specific.
-"""
-
-# ---------------------------------------------------------------------------
 # Quality check prompt
 # ---------------------------------------------------------------------------
 
@@ -246,19 +175,6 @@ Output ONLY this JSON (no markdown, no preamble):
   "verdict": "grounded" | "partially_grounded" | "hallucinated"
 }}
 """
-
-# ---------------------------------------------------------------------------
-# RAGAS preparation prompt
-# ---------------------------------------------------------------------------
-
-RAGAS_CONTEXT_PREP_PROMPT = """\
-Summarise what question this answer is trying to address, in one sentence,
-suitable as a ground-truth reference for RAG evaluation.
-
-ORIGINAL QUERY: {query}
-ANSWER: {answer}
-
-Output only the one-sentence ground truth summary:"""
 
 # ---------------------------------------------------------------------------
 # Prompt builder helpers
@@ -336,11 +252,6 @@ def build_quality_check_prompt(context: str, answer: str) -> str:
     return QUALITY_CHECK_PROMPT.format(context=context[:4000], answer=answer)
 
 
-def build_guidance_extraction_prompt(text: str) -> str:
-    """Fill the GUIDANCE_EXTRACTION_PROMPT template."""
-    return GUIDANCE_EXTRACTION_PROMPT.format(text=text[:3000])
-
-
 def build_classification_prompt(query: str) -> str:
     """Fill the QUERY_CLASSIFICATION_PROMPT template."""
     return QUERY_CLASSIFICATION_PROMPT.format(query=query)
@@ -411,12 +322,6 @@ if __name__ == "__main__":
     )
     assert "guidance_tracking" in cls_prompt
     print(f"Classification prompt: {len(cls_prompt)} chars ✓")
-
-    guidance_prompt = build_guidance_extraction_prompt(
-        "We expect revenue of $90B to $93B and EPS of $1.55 to $1.65 for Q4 2024."
-    )
-    assert "JSON" in guidance_prompt
-    print(f"Guidance extraction prompt: {len(guidance_prompt)} chars ✓")
 
     contradictions = [
         {
